@@ -2,11 +2,11 @@
 
 package = unzip
 docdir = debian/tmp/usr/share/doc/$(package)
-history = History.551
+history = History.552
 
 CC = gcc
 CFLAGS = -g -Wall
-DEFINES = -DACORN_FTYPE_NFS -DUSE_UNSHRINK
+DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR
 INSTALL_PROGRAM = install
 
 ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))

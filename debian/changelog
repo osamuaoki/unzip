@@ -1,3 +1,11 @@
+unzip (5.52-1) unstable; urgency=low
+
+  * New upstream release.
+  * Enabled new -W option via WILD_STOP_AT_DIR macro.
+  * Macro USE_UNSHRINK is no longer defined, as it's now the default.
+
+ -- Santiago Vila <sanvila@debian.org>  Tue,  1 Mar 2005 15:33:54 +0100
+
 unzip (5.51-2) unstable; urgency=low
 
   * Added unshrinking support (Closes: #252563).
