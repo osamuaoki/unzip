@@ -1,11 +1,11 @@
-# Makefile for Info-ZIP's UnZip, UnZipSFX and fUnZip using djgpp v2.01, by
-# Frank Donahoe.                                 Last updated:  30 Sept 97
+# Makefile for Info-ZIP's UnZip, UnZipSFX and fUnZip using DJGPP v2.01 or
+# higher, by Frank Donahoe.                      Last updated: 17 Feb 02
 
 # This Makefile is specifically tailored for GNU make and GNU C and
 # may not work with a generic Unix-compatible make utility.  The latest
-# make version is 3.75.  Thanks to Eli Zaretskii for generously responding
+# make version is 3.78.1.  Thanks to Eli Zaretskii for generously responding
 # to questions with advice on the changes needed to make install work under
-# the new version.
+# DJGPP version 2.0x.
 # Features used:
 # - pattern rules (%.o : %.c, etc.)
 # - GNU-specific conditionals and functions  (ifeq, $(patsubst,,),...)
@@ -22,10 +22,10 @@
 #
 #   ftp://ftp.simtel.net/pub/simtelnet/gnu/djgpp/v2misc/csdpmi?[b,s].zip
 #
-# and on its mirrors worldwide.  The latest version as of this writing is 3.
+# and on its mirrors worldwide.  The latest version as of this writing is 5.
 # Archives with the b postscript contain the binaries.  An alternate server
-# is found, l.c., in the archive pmode??[b,s].zip.  The latest (960908) is
-# v1.1.
+# is found, l.c., in the archive pmode??[b,s].zip.  The latest (20001022) is
+# v1.3.
 
 # Separators colon and <sp> are used in Unix, semi-colon and <sp> in DOS.
 VPATH=. msdos
@@ -39,22 +39,32 @@ endif
 .PHONY : clean install uninstall
 
 # UnZip flags
-# LOCAL_UNZIP may be set in AUTOEXEC.BAT or defined in djgpp.env [make].
+# LOCAL_UNZIP may be set in "AUTOEXEC.BAT" or defined in "djgpp.env" under
+# [make] as in the example below.  Or, if you habitually work in a DOS box
+# under Windows9x, right click on the MS-DOS icon, select properties, then
+# program, to find a slot called batch file, where you may specify the path
+# to a file which will set the variables of choice every time the box is
+# opened.
 # See, for example, DOSWILD, in the file INSTALL.
 
 # [make]
-# LOCAL_UNZIP=-DDOSWILD
-# BUTT=-m486
+# +BUTT=-mcpu=pentiumpro
+# +LOC=-W -Wall
+# +LOCAL_UNZIP=-DUSE_UNSHRINK
 
-# BUTT may also be defined to specify the target system.  At present, -m386
-# and -m486 are the only supported options.  Either will produce code that
-# will run on the other microprocessor, though possibly not so fast.
-# In any case, omitting BUTT will result in a slightly smaller executable.
+# BUTT may be defined to specify the target system.  With gcc v2.95,
+# optimizing options like "-mcpu=pentiumpro -march=pentiumpro" are supported,
+# but the traditional "-m386" and "-m486" options of previous gcc 2.x
+# version will continue to work.
+# So if you are in the habit of compiling from source, programs for your
+# own use, it is well to consult gcc's manual for options suitable to
+# your processer and to set BUTT accordingly.  Consult INSTALL for
+# LOCAL_UNZIP.
 
-LOC=-DDOS -DUSE_VFAT $(ASMFLG) $(LOCAL_UNZIP)
+LOC=
 CC=gcc
 LD=$(CC)
-CPPFLAGS=-I. $(LOC)
+CPPFLAGS=-I. -DDOS -DUSE_VFAT $(ASMFLG) $(LOCAL_UNZIP) $(LOC)
 ASFLAGS=$(CPPFLAGS)
 CFLAGS=-Wall -O2 $(BUTT) $(CPPFLAGS)
 
@@ -80,14 +90,20 @@ INSTALL=ginstall
 # The default value of RM is "rm -f"  .  If rm.exe is not found, uncomment
 # the following:
 # RM=del
-# If "djp.exe," which is Laszlo Molnar's executable file packer, is in the
-# path, uncomment the three lines found far below containing $(DJP).  The
-# executable files will be converted to self-extracting compressed files.
-# Look for "djp.exe" in the directory v2misc in the archive mlp???b.zip.
-# Do not add the option -s to DJP without making the required changes to
-# the targets zipinfo$E and unzipsfx$E.
+# Laszlo Molnar who wrote DJ Packer and Markus F. X. J. Oberhumer who wrote
+# the compression library used by the DJ Packer have collaborated on the
+# Ultimate Packer for eXecutables, which has recently been released.  Look
+# for upx???d.zip at     http://upx.sourceforge.net/
+# As an alternative, look for "djp.exe", now two years old, in the archive
+# mlp107[b,s].zip, found in the same location as csdpmi?[b,s].zip (see above).
+# Do not add the option -s to djp.exe without making the required changes
+# to the target zipinfo$E.  Uncomment the three lines beginning with $(DJP)
+# or $(DJPSX).
 
-DJP = djp -q
+#DJP = djp -q
+#DJPSX = djp -q -s
+DJP = upx -qq --best
+DJPSX = $(DJP)
 E = .exe
 O = .o
 M=msdos
@@ -151,7 +167,7 @@ funzip$E: $(OBJF)
 
 unzipsfx$E: $(OBJX)
 	$(LD) $(LDFLAGS) $(OBJX) -o $@
-#	$(DJP) -s $@
+#	$(DJPSX) $@
 
 # explicit compilation instructions:
 
@@ -163,7 +179,7 @@ crc_gcc$O: crc_i386.S		# 32bit, GNU AS
 # following in djgpp.env:
 
 # [make]
-# BIN_PATH=%\>;BIN_PATH%%\DJDIR%\bin
+# +BIN_PATH=%\DJDIR%\bin
 
 # Even if so placed, it can be over-ridden here by, say:
 # BIN_PATH=c:\usr\bin
@@ -188,28 +204,35 @@ endif
 crc_gcc$O:      crc_i386.S
 crc32$O:        crc32.c $(UNZIP_H) zip.h
 crctab$O:       crctab.c $(UNZIP_H) zip.h
+crctab_$O:       crctab.c $(UNZIP_H) zip.h
 crypt$O:        crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h
 crypt-$O:       crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h
+crypt_$O:       crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h
 envargs$O:      envargs.c $(UNZIP_H)
 explode$O:      explode.c $(UNZIP_H)
 extract$O:      extract.c $(UNZIP_H) crypt.h
 extract_$O:     extract.c $(UNZIP_H) crypt.h
 fileio$O:       fileio.c $(UNZIP_H) crypt.h ttyio.h ebcdic.h
+fileio_$O:      fileio.c $(UNZIP_H) crypt.h ttyio.h ebcdic.h
 funzip$O:       funzip.c $(UNZIP_H) crypt.h ttyio.h tables.h
 globals$O:      globals.c $(UNZIP_H)
 globals-$O:     globals.c $(UNZIP_H)
+globals_$O:     globals.c $(UNZIP_H)
 inflate$O:      inflate.c inflate.h $(UNZIP_H)
 inflate-$O:     inflate.c inflate.h $(UNZIP_H) crypt.h
+inflate_$O:     inflate.c inflate.h $(UNZIP_H)
 list$O:         list.c $(UNZIP_H)
 match$O:        match.c $(UNZIP_H)
+match_$O:       match.c $(UNZIP_H)
 msdos$O:        msdos/msdos.c $(UNZIP_H)
 msdos_$O:       msdos/msdos.c $(UNZIP_H)
 process$O:      process.c $(UNZIP_H)
 process_$O:     process.c $(UNZIP_H)
 ttyio$O:        ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
 ttyio-$O:       ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
+ttyio_$O:       ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
 unreduce$O:     unreduce.c $(UNZIP_H)
 unshrink$O:     unshrink.c $(UNZIP_H)
-unzip$O:        unzip.c $(UNZIP_H) crypt.h version.h consts.h
-unzipsfx$O:     unzip.c $(UNZIP_H) crypt.h version.h consts.h
+unzip$O:        unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
+unzipsfx$O:     unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
 zipinfo$O:      zipinfo.c $(UNZIP_H)

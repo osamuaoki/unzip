@@ -2,13 +2,65 @@
 
   unzip.h (new)
 
+  Copyright (c) 1990-2002 Info-ZIP.  All rights reserved.
+
   This header file contains the public macros and typedefs required by
   both the UnZip sources and by any application using the UnZip API.  If
   UNZIP_INTERNAL is defined, it includes unzpriv.h (containing includes,
   prototypes and extern variables used by the actual UnZip sources).
 
   ---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------
+This is version 2000-Apr-09 of the Info-ZIP copyright and license.
+The definitive version of this document should be available at
+ftp://ftp.info-zip.org/pub/infozip/license.html indefinitely.
 
+
+Copyright (c) 1990-2000 Info-ZIP.  All rights reserved.
+
+For the purposes of this copyright and license, "Info-ZIP" is defined as
+the following set of individuals:
+
+   Mark Adler, John Bush, Karl Davis, Harald Denker, Jean-Michel Dubois,
+   Jean-loup Gailly, Hunter Goatley, Ian Gorman, Chris Herborth, Dirk Haase,
+   Greg Hartwig, Robert Heath, Jonathan Hudson, Paul Kienitz, David Kirschbaum,
+   Johnny Lee, Onno van der Linden, Igor Mandrichenko, Steve P. Miller,
+   Sergio Monesi, Keith Owens, George Petrov, Greg Roelofs, Kai Uwe Rommel,
+   Steve Salisbury, Dave Smith, Christian Spieler, Antoine Verheijen,
+   Paul von Behren, Rich Wales, Mike White
+
+This software is provided "as is," without warranty of any kind, express
+or implied.  In no event shall Info-ZIP or its contributors be held liable
+for any direct, indirect, incidental, special or consequential damages
+arising out of the use of or inability to use this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       definition, disclaimer, and this list of conditions.
+
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, definition, disclaimer, and this list of conditions in
+       documentation and/or other materials provided with the distribution.
+
+    3. Altered versions--including, but not limited to, ports to new operating
+       systems, existing ports with new graphical interfaces, and dynamic,
+       shared, or static library versions--must be plainly marked as such
+       and must not be misrepresented as being the original source.  Such
+       altered versions also must not be misrepresented as being Info-ZIP
+       releases--including, but not limited to, labeling of the altered
+       versions with the names "Info-ZIP" (or any variation thereof, including,
+       but not limited to, different capitalizations), "Pocket UnZip," "WiZ"
+       or "MacZip" without the explicit permission of Info-ZIP.  Such altered
+       versions are further prohibited from misrepresentative use of the
+       Zip-Bugs or Info-ZIP e-mail addresses or of the Info-ZIP URL(s).
+
+    4. Info-ZIP retains the right to use the names "Info-ZIP," "Zip," "UnZip,"
+       "WiZ," "Pocket UnZip," "Pocket Zip," and "MacZip" for its own source and
+       binary releases.
+  ---------------------------------------------------------------------------*/
 
 #ifndef __unzip_h   /* prevent multiple inclusions */
 #define __unzip_h
@@ -20,6 +72,9 @@
 #ifdef __GO32__                 /* MS-DOS extender:  NOT Unix */
 #  ifdef unix
 #    undef unix
+#  endif
+#  ifdef _unix
+#    undef _unix
 #  endif
 #  ifdef __unix
 #    undef __unix
@@ -33,11 +88,11 @@
 #  define CONVEX
 #endif
 
-#if (defined(unix) || defined(__unix) || defined(__unix__))
+#if (defined(unix) || defined(_unix) || defined(__unix) || defined(__unix__))
 #  ifndef UNIX
 #    define UNIX
 #  endif
-#endif /* unix || __unix || __unix__ */
+#endif /* unix || _unix || __unix || __unix__ */
 #if (defined(M_XENIX) || defined(COHERENT) || defined(__hpux))
 #  ifndef UNIX
 #    define UNIX
@@ -143,7 +198,7 @@
 #    define MODERN
 #  endif
 #endif
-#if (defined(MACOS) || defined(ATARI_ST) || defined(RISCOS))
+#if (defined(MACOS) || defined(ATARI_ST) || defined(RISCOS) || defined(THEOS))
 #  ifndef PROTO
 #    define PROTO
 #  endif
@@ -202,8 +257,17 @@
 #endif
 
 #ifdef WINDLL
+   /* for UnZip, the "basic" part of the win32 api is sufficient */
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#    define IZ_HASDEFINED_WIN32LEAN
+#  endif
 #  include <windows.h>
 #  include "windll/structs.h"
+#  ifdef IZ_HASDEFINEd_WIN32LEAN
+#    undef WIN32_LEAN_AND_MEAN
+#    undef IZ_HASDEFINED_WIN32LEAN
+#  endif
 #endif
 
 /*---------------------------------------------------------------------------
@@ -335,6 +399,9 @@ typedef struct _UzpOpts {
 #ifdef VMS
     int bflag;          /* -b: force fixed record format for binary files */
 #endif
+#ifdef TANDEM
+    int bflag;          /* -b: create text files in 'C' format (180)*/
+#endif
 #ifdef UNIXBACKUP
     int B_flag;         /* -B: back up existing files by renaming to *~ first */
 #endif
@@ -371,7 +438,10 @@ typedef struct _UzpOpts {
 #if (defined(MSDOS) || defined(FLEXOS) || defined(OS2) || defined(WIN32))
     int sflag;          /* -s: convert spaces in filenames to underscores */
 #endif
-#if (defined(MSDOS) || defined(OS2) || defined(WIN32))
+#if (defined(NLM))
+    int sflag;          /* -s: convert spaces in filenames to underscores */
+#endif
+#if (defined(MSDOS) || defined(__human68k__) || defined(OS2) || defined(WIN32))
     int volflag;        /* -$: extract volume labels */
 #endif
     int tflag;          /* -t: test (unzip) or totals line (zipinfo) */
@@ -379,13 +449,16 @@ typedef struct _UzpOpts {
     int uflag;          /* -u: "update" (extract only newer/brand-new files) */
     int vflag;          /* -v: (verbosely) list directory */
     int V_flag;         /* -V: don't strip VMS version numbers */
-#if (defined(TANDEM) || defined(UNIX) || defined(VMS) || defined(__BEOS__))
+#if (defined(__BEOS__) || defined(TANDEM) || defined(THEOS) || defined(UNIX))
     int X_flag;         /* -X: restore owner/protection or UID/GID or ACLs */
 #endif
-#if (defined(OS2) || defined(WIN32))
+#if (defined(OS2) || defined(VMS) || defined(WIN32))
     int X_flag;         /* -X: restore owner/protection or UID/GID or ACLs */
 #endif
     int zflag;          /* -z: display the zipfile comment (only, for unzip) */
+#if (!defined(RISCOS) && !defined(CMS_MVS) && !defined(TANDEM))
+    int ddotflag;       /* -:: don't skip over "../" path elements */
+#endif
 #endif /* !FUNZIP */
 } UzpOpts;
 
@@ -453,7 +526,6 @@ typedef struct central_directory_file_header { /* CENTRAL */
 /* external return codes */
 #define PK_OK              0   /* no error */
 #define PK_COOL            0   /* no error */
-#define PK_GNARLY          0   /* no error */
 #define PK_WARN            1   /* warning error */
 #define PK_ERR             2   /* error in zipfile */
 #define PK_BADERR          3   /* severe error in zipfile */
@@ -472,12 +544,6 @@ typedef struct central_directory_file_header { /* CENTRAL */
 #define IZ_UNSUP          81   /* no files found: all unsup. compr/encrypt. */
 #define IZ_BADPWD         82   /* no files found: all had bad password */
 
-/* internal and DLL-only return codes */
-#define IZ_DIR            76   /* potential zipfile is a directory */
-#define IZ_CREATED_DIR    77   /* directory created: set time and permissions */
-#define IZ_VOL_LABEL      78   /* volume label, but can't set on hard disk */
-#define IZ_EF_TRUNC       79   /* local extra field truncated (PKZIP'd) */
-
 /* return codes of password fetches (negative = user abort; positive = error) */
 #define IZ_PW_ENTERED      0   /* got some password string; use/try it */
 #define IZ_PW_CANCEL      -1   /* no password available (for this entry) */
@@ -485,9 +551,9 @@ typedef struct central_directory_file_header { /* CENTRAL */
 #define IZ_PW_ERROR        5   /* = PK_MEM2 : failure (no mem, no tty, ...) */
 
 /* flag values for status callback function */
-#define UZ_ST_START_EXTRACT     1
-#define UZ_ST_IN_PROGRESS       2
-#define UZ_ST_FINISH_MEMBER     3
+#define UZ_ST_START_EXTRACT     1       /* no details */
+#define UZ_ST_IN_PROGRESS       2       /* no details */
+#define UZ_ST_FINISH_MEMBER     3       /* 'details': extracted size */
 
 /* return values of status callback function */
 #define UZ_ST_CONTINUE          0
@@ -507,9 +573,7 @@ void     UZ_EXP UzpFreeMemBuffer   OF((UzpBuffer *retstr));
 #ifndef WINDLL
 int      UZ_EXP UzpUnzipToMemory   OF((char *zip, char *file, UzpOpts *optflgs,
                                        UzpCB *UsrFunc, UzpBuffer *retstr));
-#endif
-#ifndef WINDLL
-   int   UZ_EXP UzpGrep            OF((char *archive, char *file,
+int      UZ_EXP UzpGrep            OF((char *archive, char *file,
                                        char *pattern, int cmd, int SkipBin,
                                        UzpCB *UsrFunc));
 #endif

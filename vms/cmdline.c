@@ -1,5 +1,13 @@
+/*
+  Copyright (c) 1990-2001 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 #define module_name VMS_UNZIP_CMDLINE
-#define module_ident "02-007"
+#define module_ident "02-008"
 /*
 **
 **  Facility:   UNZIP
@@ -16,6 +24,10 @@
 **
 **  Modified by:
 **
+**      02-008          Christian Spieler       08-DEC-2001 23:44
+**              Added support for /TRAVERSE_DIRS argument
+**      02-007          Christian Spieler       24-SEP-2001 21:12
+**              Escape verbatim '%' chars in format strings; version unchanged.
 **      02-007          Onno van der Linden     02-Jul-1998 19:07
 **              Modified to support GNU CC 2.8 on Alpha; version unchanged.
 **      02-007          Johnny Lee              25-Jun-1998 07:38
@@ -60,7 +72,7 @@
 #define UNZIP_INTERNAL
 #include "unzip.h"
 #ifndef TEST
-#  include "version.h"  /* for VMSCLI_usage() */
+#  include "unzvers.h"  /* for VMSCLI_usage() */
 #endif /* !TEST */
 
 #include <ssdef.h>
@@ -130,7 +142,6 @@ $DESCRIPTOR(cli_overwrite,      "OVERWRITE");           /* -o, -n */
 $DESCRIPTOR(cli_quiet,          "QUIET");               /* -q */
 $DESCRIPTOR(cli_super_quiet,    "QUIET.SUPER");         /* -qq */
 $DESCRIPTOR(cli_test,           "TEST");                /* -t */
-$DESCRIPTOR(cli_type,           "TYPE");                /* -c */
 $DESCRIPTOR(cli_pipe,           "PIPE");                /* -p */
 $DESCRIPTOR(cli_password,       "PASSWORD");            /* -P */
 $DESCRIPTOR(cli_uppercase,      "UPPERCASE");           /* -U */
@@ -139,6 +150,7 @@ $DESCRIPTOR(cli_version,        "VERSION");             /* -V */
 $DESCRIPTOR(cli_restore,        "RESTORE");             /* -X */
 $DESCRIPTOR(cli_comment,        "COMMENT");             /* -z */
 $DESCRIPTOR(cli_exclude,        "EXCLUDE");             /* -x */
+$DESCRIPTOR(cli_traverse,       "TRAVERSE_DIRS");       /* -: */
 
 $DESCRIPTOR(cli_information,    "ZIPINFO");             /* -Z */
 $DESCRIPTOR(cli_short,          "SHORT");               /* -Zs */
@@ -458,6 +470,15 @@ vms_unzip_cmdline (int *argc_p, char ***argv_p)
         *ptr++ = '-';
     if (status != CLI$_ABSENT)
         *ptr++ = 't';
+
+    /*
+    **  Traverse directories (don't skip "../" path components)
+    */
+    status = cli$present(&cli_traverse);
+    if (status == CLI$_NEGATED)
+        *ptr++ = '-';
+    if (status != CLI$_ABSENT)
+        *ptr++ = ':';
 
     /*
     **  Make (some) names lowercase
@@ -817,7 +838,7 @@ int VMSCLI_usage(__GPRO__ int error)    /* returns PK-type error code */
     flag = (error? 1 : 0);
 
     Info(slide, flag, ((char *)slide, UnzipSFXBanner,
-      UZ_MAJORVER, UZ_MINORVER, PATCHLEVEL, BETALEVEL, VERSION_DATE));
+      UZ_MAJORVER, UZ_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL, UZ_VERSION_DATE));
     Info(slide, flag, ((char *)slide, "\
 Valid main options are /TEST, /FRESHEN, /UPDATE, /PIPE, /SCREEN, /COMMENT%s.\n",
       SFXOPT_EXDIR));
@@ -834,7 +855,7 @@ Modifying options are /TEXT, /BINARY, /JUNK, /[NO]OVERWRITE, /QUIET,\n\
     else
         return PK_COOL;     /* just wanted usage screen: no error */
 
-} /* end function usage() */
+} /* end function VMSCLI_usage() */
 
 
 #else /* !SFX */
@@ -869,8 +890,9 @@ int VMSCLI_usage(__GPRO__ int error)    /* returns PK-type error code */
 ZipInfo %d.%d%d%s %s, by Newtware and the fine folks at Info-ZIP.\n\n\
 List name, date/time, attribute, size, compression method, etc., about files\n\
 in list (excluding those in xlist) contained in the specified .zip archive(s).\
-\n\"file[.zip]\" may be a wildcard name containing * or % (e.g., \"*font-%.zip\
-\").\n", ZI_MAJORVER, ZI_MINORVER, PATCHLEVEL, BETALEVEL, VERSION_DATE));
+\n\"file[.zip]\" may be a wildcard name containing * or %% (e.g., \"*font-%%\
+.zip\").\n", ZI_MAJORVER, ZI_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
+          UZ_VERSION_DATE));
 
         Info(slide, flag, ((char *)slide, "\
    usage:  zipinfo file[.zip] [list] [/EXCL=(xlist)] [/DIR=exdir] /options\n\
@@ -899,7 +921,8 @@ Remember that non-lowercase filespecs must be\
     } else {   /* UnZip mode */
 
         Info(slide, flag, ((char *)slide, UnzipUsageLine1,
-          UZ_MAJORVER, UZ_MINORVER, PATCHLEVEL, BETALEVEL, VERSION_DATE));
+          UZ_MAJORVER, UZ_MINORVER, UZ_PATCHLEVEL, UZ_BETALEVEL,
+          UZ_VERSION_DATE));
 
 #ifdef BETA
         Info(slide, flag, ((char *)slide, BetaVersion, "", ""));
@@ -926,7 +949,7 @@ Modifiers include:\n\
    /[NO]CASE_INSENSITIVE, /[NO]LOWERCASE, /[NO]VERSION, /[NO]RESTORE\n\n"));
 
         Info(slide, flag, ((char *)slide, "\
-Examples (see unzip.doc or \"HELP UNZIP\" for more info):\n   \
+Examples (see unzip.txt or \"HELP UNZIP\" for more info):\n   \
 unzip edit1 /EXCL=joe.jou /CASE_INSENSITIVE    => extract all files except\n   \
    joe.jou (or JOE.JOU, or any combination of case) from zipfile edit1.zip\n   \
 unzip zip201 \"Makefile.VMS\" vms/*.[ch]         => extract VMS Makefile and\n\

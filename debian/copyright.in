@@ -1,10 +1,10 @@
-This is the Debian GNU/Linux prepackaged version of "unzip", Info-Zip's
-fast, portable, zipfile decompression utility.
+This is the Debian prepackaged version of "unzip", Info-Zip's fast,
+portable, zipfile decompression utility.
 
-This package is currently maintained by Santiago Vila <sanvila@ctv.es>
+This package is currently maintained by Santiago Vila <sanvila@debian.org>
 and built from sources obtained from:
 
-ftp://ftp.cdrom.com/pub/infozip/src/unzip540.tar.gz
+ftp://ftp.info-zip.org/pub/infozip/src/unzip550.tar.gz
 
 The changes were fairly minimal, and consisted solely of adding
 various debian/* files to the distribution.

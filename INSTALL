@@ -1,6 +1,6 @@
 __________________________________________________________________________
 
-  This is the Info-ZIP file INSTALL (for UnZip), last updated 28 Nov 98.
+  This is the Info-ZIP file INSTALL (for UnZip), last updated 28 Apr 2001.
 __________________________________________________________________________
 
   Yes, this is a rather long file, but don't be intimidated:  much of its
@@ -57,12 +57,13 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     tops20/* should be unpacked into the current directory, but TOPS-20
     is no longer fully supported anyway.
 
-    If you wish to compile with decryption enabled, you must get the zcrypt
-    package (see the "WHERE" file).  Unpack crypt.c and crypt.h from the
-    zcrypt archive, overwriting the dummy versions supplied with UnZip.  If
-    you don't have any sort of unzipper available, you'll have to compile the
-    non-crypt version first and use that to unpack the full crypt sources,
-    then recompile.
+    As of UnZip 5.41, full decryption support has been integrated in the
+    UnZip source distribution.  If you wish to compile binaries without
+    decryption support, you must define the preprocessor flag NO_CRYPT.
+    For many environments, you may add this flag to the custom compilation
+    flags supplied by the environment variable LOCAL_UNZIP.  For more
+    details, see the make procedures and accompanied documentation for your
+    particular target OS.
 
 
 (2) Choose the appropriate makefile based on the description in the Con-
@@ -116,6 +117,17 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         in general.  All other regular expressions (including "?" and
         "[range_of_chars]") retain their Unix-like behavior.
 
+      WILD_STOP_AT_DIR
+        Modifies the pattern matching routine so that both '?' (single-char
+        wildcard) and '*' (multi-char wildcard) do not match the directory
+        separator character '/'. Examples:
+          "*.c" matches "foo.c" but not "mydir/foo.c"
+          "*/*.c" matches "bar/foo.c" but not "baz/bar/foo.c"
+          "??*/*" matches "ab/foo" and "abc/foo" but not "a/foo" or "a/b/foo"
+        This modified behaviour is equivalent to the pattern matching style
+        used by the shells of some of UnZip's supported target OSs (one
+        example is Acorn RISC OS).
+
       VMSWILD   (VMS only)
         Use parentheses rather than brackets to delimit sets (ranges), and
         use '%' instead of '?' as the single-character wildcard for internal
@@ -158,7 +170,27 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         default, but it can be extremely useful on those rare occasions when
         a VMS text file must be extracted as normal text.
 
-      USE_VFAT   (MS-DOS only, for using same executable under DOS and Win95/NT)
+      USE_DJGPP_ENV   (MS-DOS DJGPP 2.0x only)
+        Regular DJGPP v2.0x compiled programs which use ENVIRONMENT are
+        able to read from the file "djgpp.env" as well as those set in the
+        environment.  This adds about 1KB to the size of the executable.
+        This option is disabled by default in Info-ZIP source. If you are
+        able to use "djgpp.env" and don't like to clutter the environment
+        with many special purpose variables, you may want to compile with
+        this option set.
+
+      USE_DJGPP_GLOB  (MS-DOS DJGPP 2.0x only)
+        If you like to get UnZip binaries that handle command line arguments
+        similar to Unix tools which are run in an Unix shell, you might want
+        to set this compilation option.  This option enables the support for
+        globbing command line arguments containing wild card that is built
+        into the DJGPP startup code.  When using a binary compiled with this
+        option, you may have to enclose wildcard arguments in double quotes
+        to get them passed to the program unmodified.  Enabling this option
+        is not recommended, because it results in Info-Zip binaries that do
+        not behave as expected for MS-DOS programs.
+
+      USE_VFAT  (MS-DOS only, for using same executable under DOS and Win95/NT)
         djgpp 2.x and emx/gcc+RSX 5.1 can detect when they are running under a
         Win32 DOS box and will accordingly enable long-filename support.  For
         now only djgpp 2.x and emx/gcc with RSX 5.1 or later have this feature
@@ -181,7 +213,7 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         For DOS derivatives the format is automatically obtained from the
         operating system; most others default to DF_MDY.
 
-      ACORN_FTYPE_NFS  (currently, Unix only)
+      ACORN_FTYPE_NFS  (needs support for long filenames with embedded commas)
         This option enables a -F option that instructs UnZip to interpret the
         filetype information extracted from Acorn RiscOS extra field blocks.
         The filetype IDs are translated into "NFS filetype extensions" and
@@ -224,10 +256,22 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         No longer supported.
 
       SFX_EXDIR
-        Enable the "-d <extract_dir>" option for UnZipSFX.  By default it is
-        disabled so as to generate the smallest possible executable stub, but
-        for use with automated installation scripts and the like it may be
-        useful to enable -d.
+        Enable the "-d <extract_dir>" option for UnZipSFX.  This is now
+        enabled by default (since UnZip 5.5) to facilitate use with
+        automated installation scripts and the like.  For disabling
+        this feature, see the NO_SFX_EXDIR option.
+
+      NO_SFX_EXDIR
+        Disables the "-d <extract_dir>" option for UnZipSFX to generate the
+        smallest possible executable stub.  (Prior to the UnZip 5.5 release,
+        this was the default.)
+
+      CHEAP_SFX_AUTORUN
+        Enable a simple "run command after extraction" feature for
+        the (command line) UnZipSFX stub.  This feature is currently
+        incompatible with the "-d <extract_dir>" command line option,
+        therefore CHEAP_SFX_AUTORUN implicitely sets the NO_SFX_EXDIR
+        option.
 
       NO_ZIPINFO
         Compile without ZipInfo mode (-Z) enabled; makes a smaller executable
@@ -236,6 +280,30 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         is no need to specify this explicitly.  (Note that even with this
         defined, the resulting executable may still be too big to extract
         some zipfiles correctly, if compiled with the small memory model.)
+
+      USE_DEFLATE64 (default for UnZip and fUnZip)
+      NO_DEFLATE64 (default for UnZipSFX stub)
+        The "deflate64" algorithm from PKZIP 4.0 (or newer) is an enhanced
+        variant of the deflate algorithm that achieves slightly better
+        compression ratios on highly redundant data.  Normally, UnZip should
+        be compiled with support for this compression algorithm enabled.
+        However, this results in significantly larger memory requirements
+        to run the program.  For 16-bit executables (DOS and OS/2), the
+        special memory management to support the 64k history buffer results
+        in a slight performance (= speed) penalty.  And for the SFX stub,
+        "deflate64" support might be unnessessary as long as the Info-ZIP
+        Zip utility does not support it (quite likely, this will never
+        get implemented).  So, the NO_DEFLATE64 option is provided to allow
+        exclusion of the deflate64 support.
+
+      MULT_VOLUME (experimental for 5.5x, do NOT use in production versions!)
+      NO_MULT_VOLUME (default)
+        The symbol MULT_VOLUME is used to flag code portions needed for
+        support of multi-volume archives. For now, this flag MUST NOT be
+        used to compile a production versions of UnZip. This flag has been
+        introduced to allow integration of experimental code for multi-volume
+        support in the master source tree. This feature will become a default
+        option in the future 6.0 release of UnZip.
 
       LZW_CLEAN   (now default)
       USE_UNSHRINK
@@ -257,6 +325,15 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
         clude unreducing capability, define USE_SMITH_CODE.  Note that this
         subjects UnZip to any and all restrictions in Smith's copyright; see
         the UnZip COPYING file for details.
+
+      USE_CRYPT
+        Enable decryption support for all binaries.  The default setting
+        is to disable decryption support for the SFX stub to keep its size
+        as small as possible. For other binaries of the UnZip distribution,
+        decryption support is enabled by default.
+
+      NO_CRYPT
+        Disable decryption support for all binaries.
 
       PASSWD_FROM_STDIN   (with full crypt sources only; Unix, VMS only)
         Used to allow the password on encrypted files to be read from stdin
@@ -441,7 +518,7 @@ To compile UnZip, UnZipSFX and/or fUnZip (detailed instructions):
     Also note that many OSes require a timezone variable to be set correctly
     (often "TZ"); Unix and VMS generally do so by default, Win95/NT do if set
     up properly, but other OSes generally do not.  See the discussion of the
-    -f and -u options in the UnZip man page (or unzip.doc).  BeOS doesn't
+    -f and -u options in the UnZip man page (or unzip.txt).  BeOS doesn't
     currently support timezone information at all, but this will probably be
     added soon.
 
@@ -503,7 +580,7 @@ BeOS
   and the default man-page extension is "1" (corresponding to the man/man1,
   above).  Of course, these Unix man-pages aren't useful until someone ports
   something that can format them... plain text versions are also installed
-  with an extension of ".doc".  To install, do a "make install", or to
+  with an extension of ".txt".  To install, do a "make install", or to
   change the prefix, do "make prefix=/your/path install".  For example, to
   install in /boot/bin, do "make prefix=/boot/bin install".
 
@@ -519,7 +596,8 @@ Macintosh
   Panel or directly on your desktop.
   This port supports also Apple-event.So you can install it in your
   WWW-Browser as a helper-app.
-  Look into ":macos:README.TXT" for further info.
+  Look into "macos/README.TXT" (or ":macos:README.TXT" on Mac) for further
+  info.
 
 Human68K, TOPS-20, AOS/VS, MVS, VM/CMS, etc.
   Dunno, sorry...

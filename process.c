@@ -1,3 +1,11 @@
+/*
+  Copyright (c) 1990-2001 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 /*---------------------------------------------------------------------------
 
   process.c
@@ -13,6 +21,7 @@
              get_cdir_ent()
              process_local_file_hdr()
              ef_scan_for_izux()
+             getRISCOSexfield()
 
   ---------------------------------------------------------------------------*/
 
@@ -36,6 +45,12 @@ static ZCONST char Far CannotAllocateBuffers[] =
 #ifdef SFX
    static ZCONST char Far CannotFindMyself[] =
      "unzipsfx:  cannot find myself! [%s]\n";
+# ifdef CHEAP_SFX_AUTORUN
+   static ZCONST char Far AutorunPrompt[] =
+     "\nAuto-run command: %s\nExecute this command? [y/n] ";
+   static ZCONST char Far NotAutoRunning[] =
+     "Not executing auto-run command.";
+# endif
 
 #else /* !SFX */
    /* process_zipfiles() strings */
@@ -62,7 +77,7 @@ static ZCONST char Far CannotAllocateBuffers[] =
      "%s:  cannot find zipfile directory in one of %s or\n\
         %s%s.zip, and cannot find %s, period.\n";
    static ZCONST char Far CannotFindEitherZipfile[] =
-     "%s:  cannot find %s, %s.zip or %s.\n";   /* ", so there" removed 970918 */
+     "%s:  cannot find %s, %s.zip or %s.\n";
 # else /* !UNIX */
 # ifndef AMIGA
    static ZCONST char Far CannotFindWildcardMatch[] =
@@ -72,7 +87,7 @@ static ZCONST char Far CannotAllocateBuffers[] =
      "%s:  cannot find zipfile directory in %s,\n\
         %sand cannot find %s, period.\n";
    static ZCONST char Far CannotFindEitherZipfile[] =
-     "%s:  cannot find either %s or %s.\n";    /* ", so there" removed 970918 */
+     "%s:  cannot find either %s or %s.\n";
 # endif /* ?UNIX */
    extern ZCONST char Far Zipnfo[];       /* in unzip.c */
 #ifndef WINDLL
@@ -185,11 +200,11 @@ int process_zipfiles(__G)    /* return PK-type error code */
 #endif /* 0 */
 
     /* finish up initialization of magic signature strings */
-    local_hdr_sig[0]  /* = extd_local_sig[0] */  = 0x50;   /* ASCII 'P', */
-    central_hdr_sig[0] = end_central_sig[0] = 0x50;     /* not EBCDIC */
+    local_hdr_sig[0]  /* = extd_local_sig[0] */ =       /* ASCII 'P', */
+      central_hdr_sig[0] = end_central_sig[0] = 0x50;   /* not EBCDIC */
 
-    local_hdr_sig[1]  /* = extd_local_sig[1] */  = 0x4B;   /* ASCII 'K', */
-    central_hdr_sig[1] = end_central_sig[1] = 0x4B;     /* not EBCDIC */
+    local_hdr_sig[1]  /* = extd_local_sig[1] */ =       /* ASCII 'K', */
+      central_hdr_sig[1] = end_central_sig[1] = 0x4B;   /* not EBCDIC */
 
 /*---------------------------------------------------------------------------
     Make sure timezone info is set correctly; localtime() returns GMT on
@@ -198,6 +213,13 @@ int process_zipfiles(__G)    /* return PK-type error code */
     still too strict; any listed OS that supplies tzset(), regardless of
     whether the function does anything, should be removed from the ifdefs.
   ---------------------------------------------------------------------------*/
+
+#if (defined(WIN32) && defined(USE_EF_UT_TIME))
+    /* For the Win32 environment, we may have to "prepare" the environment
+       prior to the tzset() call, to work around tzset() implementation bugs.
+     */
+    iz_w32_prepareTZenv();
+#endif
 
 #if (defined(IZ_CHECK_TZ) && defined(USE_EF_UT_TIME))
 #  ifndef VALID_TIMEZONE
@@ -224,6 +246,18 @@ int process_zipfiles(__G)    /* return PK-type error code */
     tzset();
 #endif
 #endif
+
+/*---------------------------------------------------------------------------
+    Initialize the internal flag holding the mode of processing "overwrite
+    existing file" cases.  We do not use the calling interface flags directly
+    because the overwrite mode may be changed by user interaction while
+    processing archive files.  Such a change should not affect the option
+    settings as passed through the DLL calling interface.
+    In case of conflicting options, the 'safer' flag uO.overwrite_none takes
+    precedence.
+  ---------------------------------------------------------------------------*/
+    G.overwrite_mode = (uO.overwrite_none ? OVERWRT_NEVER :
+                        (uO.overwrite_all ? OVERWRT_ALWAYS : OVERWRT_QUERY));
 
 /*---------------------------------------------------------------------------
     Match (possible) wildcard zipfile specification with existing files and
@@ -259,6 +293,17 @@ int process_zipfiles(__G)    /* return PK-type error code */
             Info(slide, 1, ((char *)slide, LoadFarString(CannotFindMyself),
               G.zipfn));
     }
+#ifdef CHEAP_SFX_AUTORUN
+    if (G.autorun_command[0] && !uO.qflag) { /* NO autorun without prompt! */
+        Info(slide, 0x81, ((char *)slide, LoadFarString(AutorunPrompt),
+                      FnFilter1(G.autorun_command)));
+        if (fgets(G.answerbuf, 9, stdin) != (char *)NULL
+            && toupper(*G.answerbuf) == 'Y')
+            system(G.autorun_command);
+        else
+            Info(slide, 1, ((char *)slide, LoadFarString(NotAutoRunning)));
+    }
+#endif /* CHEAP_SFX_AUTORUN */
 
 #else /* !SFX */
     NumWinFiles = NumLoseFiles = NumWarnFiles = 0;
@@ -288,9 +333,9 @@ int process_zipfiles(__G)    /* return PK-type error code */
         else
             ++NumWinFiles;
 
+        Trace((stderr, "do_seekable(0) returns %d\n", error));
         if (error != IZ_DIR && error > error_in_archive)
             error_in_archive = error;
-        Trace((stderr, "do_seekable(0) returns %d\n", error));
 #ifdef WINDLL
         if (error == IZ_CTRLC) {
             free_G_buffers(__G);
@@ -335,21 +380,30 @@ int process_zipfiles(__G)    /* return PK-type error code */
 #else
             error = do_seekable(__G__ 1);
 #endif
-            if (error == PK_WARN)   /* GRR: make this a switch/case stmt ... */
+            Trace((stderr, "do_seekable(1) returns %d\n", error));
+            switch (error) {
+              case PK_WARN:
                 ++NumWarnFiles;
-            else if (error == IZ_DIR)
+                break;
+              case IZ_DIR:
                 ++NumMissDirs;
-            else if (error == PK_NOZIP)
-                /* increment again => bug: "1 file had no zipfile directory." */
+                error = PK_NOZIP;
+                break;
+              case PK_NOZIP:
+                /* increment again => bug:
+                   "1 file had no zipfile directory." */
                 /* ++NumMissFiles */ ;
-            else if (error)
-                ++NumLoseFiles;
-            else
-                ++NumWinFiles;
+                break;
+              default:
+                if (error)
+                    ++NumLoseFiles;
+                else
+                    ++NumWinFiles;
+                break;
+            }
 
             if (error > error_in_archive)
                 error_in_archive = error;
-            Trace((stderr, "do_seekable(1) returns %d\n", error));
 #ifdef WINDLL
             if (error == IZ_CTRLC) {
                 free_G_buffers(__G);
@@ -435,6 +489,11 @@ void free_G_buffers(__G)     /* releases all memory allocated in global vars */
         G.key = (char *)NULL;
    }
 
+   if (G.extra_field != (uch *)NULL) {
+        free(G.extra_field);
+        G.extra_field = (uch *)NULL;
+   }
+
 #if (!defined(VMS) && !defined(SMALL_MEM))
     /* VMS uses its own buffer scheme for textmode flush() */
     if (G.outbuf2) {
@@ -476,7 +535,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
     int too_weird_to_continue=FALSE;
 #ifdef TIMESTAMP
     time_t uxstamp;
-    unsigned nmember = 0;
+    ulg nmember = 0L;
 #endif
 #endif
     int error=0, error_in_archive;
@@ -488,10 +547,13 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
   ---------------------------------------------------------------------------*/
 
     if (SSTAT(G.zipfn, &G.statbuf) ||
+#ifdef THEOS
+        (error = S_ISLIB(G.statbuf.st_mode)) != 0 ||
+#endif
         (error = S_ISDIR(G.statbuf.st_mode)) != 0)
     {
 #ifndef SFX
-        if (lastchance) {
+        if (lastchance && (uO.qflag < 3)) {
 #if defined(UNIX) || defined(QDOS)
             if (G.no_ecrec)
                 Info(slide, 1, ((char *)slide,
@@ -504,7 +566,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
                   LoadFarString(CannotFindEitherZipfile), uO.zipinfo_mode?
                   LoadFarStringSmall(Zipnfo) : LoadFarStringSmall(Unzip),
                   G.wildzipfn, G.wildzipfn, G.zipfn));
-#else /* !UNIX */
+#else /* !(UNIX || QDOS) */
             if (G.no_ecrec)
                 Info(slide, 0x401, ((char *)slide,
                   LoadFarString(CannotFindZipfileDirMsg), uO.zipinfo_mode?
@@ -515,7 +577,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
                   LoadFarString(CannotFindEitherZipfile), uO.zipinfo_mode?
                   LoadFarStringSmall(Zipnfo) : LoadFarStringSmall(Unzip),
                   G.wildzipfn, G.zipfn));
-#endif /* ?UNIX */
+#endif /* ?(UNIX || QDOS) */
         }
 #endif /* !SFX */
         return error? IZ_DIR : PK_NOZIP;
@@ -523,7 +585,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
     G.ziplen = G.statbuf.st_size;
 
 #ifndef SFX
-#if defined(UNIX) || defined(DOS_OS2_W32)
+#if defined(UNIX) || defined(DOS_OS2_W32) || defined(THEOS)
     if (G.statbuf.st_mode & S_IEXEC)   /* no extension on Unix exes:  might */
         maybe_exe = TRUE;               /*  find unzip, not unzip.zip; etc. */
 #endif
@@ -547,16 +609,21 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
 
     /* initialize the CRC table pointer (once) */
     if (CRC_32_TAB == NULL) {
-        if ((CRC_32_TAB = get_crc_table()) == NULL)
+        if ((CRC_32_TAB = get_crc_table()) == NULL) {
+            CLOSE_INFILE();
             return PK_MEM;
+        }
     }
 
 #if (!defined(SFX) || defined(SFX_EXDIR))
     /* check out if specified extraction root directory exists */
     if (uO.exdir != (char *)NULL && G.extract_flag) {
         G.create_dirs = !uO.fflag;
-        if ((error = checkdir(__G__ uO.exdir, ROOT)) > 2)
-            return error;   /* out of memory, or file in way */
+        if ((error = checkdir(__G__ uO.exdir, ROOT)) > MPN_INF_SKIP) {
+            /* out of memory, or file in way */
+            CLOSE_INFILE();
+            return (error == MPN_NOMEM ? PK_MEM : PK_ERR);
+        }
     }
 #endif /* !SFX || SFX_EXDIR */
 
@@ -701,16 +768,20 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
         with STZip, as well as archives created by J.H. Holm's ZIPSPLIT 1.1).
       -----------------------------------------------------------------------*/
 
-        ZLSEEK( G.ecrec.offset_start_central_directory )
+        error = seek_zipf(__G__ G.ecrec.offset_start_central_directory);
+        if (error == PK_BADERR) {
+            CLOSE_INFILE();
+            return PK_BADERR;
+        }
 #ifdef OLD_SEEK_TEST
-        if (readbuf(G.sig, 4) == 0) {
+        if (error != PK_OK || readbuf(__G__ G.sig, 4) == 0) {
             CLOSE_INFILE();
             return PK_ERR;  /* file may be locked, or possibly disk error(?) */
         }
         if (strncmp(G.sig, central_hdr_sig, 4))
 #else
-        if ((readbuf(__G__ G.sig, 4) == 0) ||
-             strncmp(G.sig, central_hdr_sig, 4))
+        if ((error != PK_OK) || (readbuf(__G__ G.sig, 4) == 0) ||
+            strncmp(G.sig, central_hdr_sig, 4))
 #endif
         {
 #ifndef SFX
@@ -718,15 +789,16 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
 #endif
 
             G.extra_bytes = 0;
-            ZLSEEK( G.ecrec.offset_start_central_directory )
-            if ((readbuf(__G__ G.sig, 4) == 0) ||
+            error = seek_zipf(__G__ G.ecrec.offset_start_central_directory);
+            if ((error != PK_OK) || (readbuf(__G__ G.sig, 4) == 0) ||
                 strncmp(G.sig, central_hdr_sig, 4))
             {
-                Info(slide, 0x401, ((char *)slide,
-                  LoadFarString(CentDirStartNotFound), G.zipfn,
-                  LoadFarStringSmall(ReportMsg)));
+                if (error != PK_BADERR)
+                  Info(slide, 0x401, ((char *)slide,
+                    LoadFarString(CentDirStartNotFound), G.zipfn,
+                    LoadFarStringSmall(ReportMsg)));
                 CLOSE_INFILE();
-                return PK_BADERR;
+                return (error != PK_OK ? error : PK_BADERR);
             }
 #ifndef SFX
             Info(slide, 0x401, ((char *)slide, LoadFarString(CentDirTooLong),
@@ -741,10 +813,14 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
         or test member files as instructed, and close the zipfile.
       -----------------------------------------------------------------------*/
 
+        error = seek_zipf(__G__ G.ecrec.offset_start_central_directory);
+        if (error != PK_OK) {
+            CLOSE_INFILE();
+            return error;
+        }
+
         Trace((stderr, "about to extract/list files (error = %d)\n",
           error_in_archive));
-
-        ZLSEEK( G.ecrec.offset_start_central_directory )
 
 #ifdef DLL
         /* G.fValidate is used only to look at an archive to see if
@@ -760,7 +836,7 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
         {
 #ifndef NO_ZIPINFO
             if (uO.zipinfo_mode)
-                error = zipinfo(__G);                     /* ZIPINFO 'EM */
+                error = zipinfo(__G);                 /* ZIPINFO 'EM */
             else
 #endif
 #ifndef SFX
@@ -788,14 +864,15 @@ static int do_seekable(__G__ lastchance)        /* return PK-type error code */
     CLOSE_INFILE();
 
 #ifdef TIMESTAMP
-    if (uO.T_flag && !uO.zipinfo_mode && (nmember > 0)) {
+    if (uO.T_flag && !uO.zipinfo_mode && (nmember > 0L)) {
 # ifdef WIN32
         if (stamp_file(__G__ G.zipfn, uxstamp)) {       /* TIME-STAMP 'EM */
 # else
         if (stamp_file(G.zipfn, uxstamp)) {             /* TIME-STAMP 'EM */
 # endif
-            Info(slide, 0x201, ((char *)slide,
-              "warning:  cannot set time for %s\n", G.zipfn));
+            if (uO.qflag < 3)
+                Info(slide, 0x201, ((char *)slide,
+                  "warning:  cannot set time for %s\n", G.zipfn));
             if (error_in_archive < PK_WARN)
                 error_in_archive = PK_WARN;
         }
@@ -831,15 +908,17 @@ static int find_ecrec(__G__ searchlen)          /* return PK-class error */
         if ((G.incnt = read(G.zipfd,(char *)G.inbuf,(unsigned int)G.ziplen))
             == (int)G.ziplen)
 
-            /* 'P' must be at least 22 bytes from end of zipfile */
-            for (G.inptr = G.inbuf+(int)G.ziplen-22;  G.inptr >= G.inbuf;
-                 --G.inptr)
-                if ((native(*G.inptr) == 'P')  &&
+            /* 'P' must be at least (ECREC_SIZE+4) bytes from end of zipfile */
+            for (G.inptr = G.inbuf+(int)G.ziplen-(ECREC_SIZE+4);
+                 G.inptr >= G.inbuf;
+                 --G.inptr) {
+                if ( (*G.inptr == (uch)0x50) &&         /* ASCII 'P' */
                      !strncmp((char *)G.inptr, end_central_sig, 4)) {
                     G.incnt -= (int)(G.inptr - G.inbuf);
                     found = TRUE;
                     break;
                 }
+            }
 
 /*---------------------------------------------------------------------------
     Zipfile is longer than INBUFSIZ:  may need to loop.  Start with short
@@ -859,17 +938,19 @@ static int find_ecrec(__G__ searchlen)          /* return PK-class error */
                 (unsigned int)tail_len)) != (int)tail_len)
                 goto fail;      /* it's expedient... */
 
-            /* 'P' must be at least 22 bytes from end of zipfile */
-            for (G.inptr = G.inbuf+(int)tail_len-22;  G.inptr >= G.inbuf;
-                 --G.inptr)
-                if ((native(*G.inptr) == 'P')  &&
+            /* 'P' must be at least (ECREC_SIZE+4) bytes from end of zipfile */
+            for (G.inptr = G.inbuf+(int)tail_len-(ECREC_SIZE+4);
+                 G.inptr >= G.inbuf;
+                 --G.inptr) {
+                if ( (*G.inptr == (uch)0x50) &&         /* ASCII 'P' */
                      !strncmp((char *)G.inptr, end_central_sig, 4)) {
                     G.incnt -= (int)(G.inptr - G.inbuf);
                     found = TRUE;
                     break;
                 }
+            }
             /* sig may span block boundary: */
-            strncpy((char *)G.hold, (char *)G.inbuf, 3);
+            memcpy((char *)G.hold, (char *)G.inbuf, 3);
         } else
             G.cur_zipfile_bufstart = G.ziplen - tail_len;
 
@@ -898,7 +979,7 @@ static int find_ecrec(__G__ searchlen)          /* return PK-class error */
                     break;
                 }
             /* sig may span block boundary: */
-            strncpy((char *)G.hold, (char *)G.inbuf, 3);
+            memcpy((char *)G.hold, (char *)G.inbuf, 3);
         }
     } /* end if (ziplen > INBUFSIZ) */
 
@@ -988,12 +1069,25 @@ int uz_end_central(__G)    /* return PK-type error code */
                                         !uO.qflag)))
 #endif /* ?WINDLL */
     {
+#if (defined(SFX) && defined(CHEAP_SFX_AUTORUN))
+        if (do_string(__G__ G.ecrec.zipfile_comment_length, CHECK_AUTORUN)) {
+#else
         if (do_string(__G__ G.ecrec.zipfile_comment_length, DISPLAY)) {
+#endif
             Info(slide, 0x401, ((char *)slide,
               LoadFarString(ZipfileCommTrunc1)));
             error = PK_WARN;
         }
     }
+#if (defined(SFX) && defined(CHEAP_SFX_AUTORUN))
+    else if (G.ecrec.zipfile_comment_length) {
+        if (do_string(__G__ G.ecrec.zipfile_comment_length, CHECK_AUTORUN_Q)) {
+            Info(slide, 0x401, ((char *)slide,
+              LoadFarString(ZipfileCommTrunc1)));
+            error = PK_WARN;
+        }
+    }
+#endif
     return error;
 
 } /* end function uz_end_central() */
@@ -1021,11 +1115,12 @@ int process_cdir_file_hdr(__G)    /* return PK-type error code */
     if ((error = get_cdir_ent(__G)) != 0)
         return error;
 
+    G.pInfo->hostver = G.crec.version_made_by[0];
     G.pInfo->hostnum = MIN(G.crec.version_made_by[1], NUM_HOSTS);
 /*  extnum = MIN(crec.version_needed_to_extract[1], NUM_HOSTS); */
 
     G.pInfo->lcflag = 0;
-    if (uO.L_flag)            /* user specified case-conversion */
+    if (uO.L_flag == 1)       /* name conversion for monocase systems */
         switch (G.pInfo->hostnum) {
             case FS_FAT_:     /* PKZIP and zip -k store in uppercase */
             case CPM_:        /* like MS-DOS, right? */
@@ -1040,8 +1135,11 @@ int process_cdir_file_hdr(__G)    /* return PK-type error code */
                 break;
 
             default:     /* AMIGA_, FS_HPFS_, FS_NTFS_, MAC_, UNIX_, ATARI_, */
-                break;   /*  FS_VFAT_, BEOS_ (Z_SYSTEM_):  no conversion */
+                break;   /*  FS_VFAT_, BEOS_ (Z_SYSTEM_), THEOS_: */
+                         /*  no conversion */
         }
+    else if (uO.L_flag > 1)   /* let -LL force lower case for all names */
+        G.pInfo->lcflag = 1;
 
     /* do Amigas (AMIGA_) also have volume labels? */
     if (IS_VOLID(G.crec.external_file_attributes) &&
@@ -1052,6 +1150,11 @@ int process_cdir_file_hdr(__G)    /* return PK-type error code */
         G.pInfo->lcflag = 0;        /* preserve case of volume labels */
     } else
         G.pInfo->vollabel = FALSE;
+
+    /* this flag is needed to detect archives made by "PKZIP for Unix" when
+       deciding which kind of codepage conversion has to be applied to
+       strings (see do_string() function in fileio.c) */
+    G.pInfo->HasUxAtt = (G.crec.external_file_attributes & 0xffff0000L) != 0L;
 
     return PK_COOL;
 
@@ -1158,15 +1261,14 @@ int process_local_file_hdr(__G)    /* return PK-type error code */
     G.lrec.filename_length = makeword(&byterec[L_FILENAME_LENGTH]);
     G.lrec.extra_field_length = makeword(&byterec[L_EXTRA_FIELD_LENGTH]);
 
-    G.csize = (long) G.lrec.csize;
-    G.ucsize = (long) G.lrec.ucsize;
-
     if ((G.lrec.general_purpose_bit_flag & 8) != 0) {
         /* can't trust local header, use central directory: */
         G.lrec.crc32 = G.pInfo->crc;
-        G.csize = (long)(G.lrec.csize = G.pInfo->compr_size);
-        G.ucsize = (long)(G.lrec.ucsize = G.pInfo->uncompr_size);
+        G.lrec.csize = G.pInfo->compr_size;
+        G.lrec.ucsize = G.pInfo->uncompr_size;
     }
+
+    G.csize = (long)G.lrec.csize;
 
     return PK_COOL;
 
@@ -1181,7 +1283,7 @@ int process_local_file_hdr(__G)    /* return PK-type error code */
 
 unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
                           z_utim, z_uidgid)
-    uch *ef_buf;        /* buffer containing extra field */
+    ZCONST uch *ef_buf; /* buffer containing extra field */
     unsigned ef_len;    /* total length of extra field */
     int ef_is_c;        /* flag indicating "is central extra field" */
     ulg dos_mdatetime;  /* last_mod_file_date_time in DOS format */
@@ -1192,7 +1294,12 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
     unsigned eb_id;
     unsigned eb_len;
     int have_new_type_eb = FALSE;
+    long i_time;        /* buffer for Unix style 32-bit integer time value */
+#ifdef TIME_T_TYPE_DOUBLE
+    int ut_in_archive_sgn = 0;
+#else
     int ut_zip_unzip_compatible = FALSE;
+#endif
 
 /*---------------------------------------------------------------------------
     This function scans the extra field for EF_TIME, EF_IZUNIX2, EF_IZUNIX, or
@@ -1240,19 +1347,44 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
                 flags |= (ef_buf[EB_HEADSIZE+EB_UT_FLAGS] & 0x0ff);
                 if ((flags & EB_UT_FL_MTIME)) {
                     if ((eb_idx+4) <= eb_len) {
-                        z_utim->mtime = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
                         eb_idx += 4;
                         TTrace((stderr,"  UT e.f. modification time = %ld\n",
-                                z_utim->mtime));
+                                i_time));
 
-                        if ((ulg)(z_utim->mtime) & (ulg)(0x80000000L)) {
+#ifdef TIME_T_TYPE_DOUBLE
+                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
+                            if (dos_mdatetime == DOSTIME_MINIMUM) {
+                              ut_in_archive_sgn = -1;
+                              z_utim->mtime =
+                                (time_t)((long)i_time | (~(long)0x7fffffffL));
+                            } else if (dos_mdatetime >= DOSTIME_2038_01_18) {
+                              ut_in_archive_sgn = 1;
+                              z_utim->mtime =
+                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
+                            } else {
+                              ut_in_archive_sgn = 0;
+                              /* cannot determine sign of mtime;
+                                 without modtime: ignore complete UT field */
+                              flags &= ~0x0ff;  /* no time_t times available */
+                              TTrace((stderr,
+                                "  UT modtime range error; ignore e.f.!\n"));
+                              break;            /* stop scanning this field */
+                            }
+                        } else {
+                            /* cannot determine, safe assumption is FALSE */
+                            ut_in_archive_sgn = 0;
+                            z_utim->mtime = (time_t)i_time;
+                        }
+#else /* !TIME_T_TYPE_DOUBLE */
+                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
                             ut_zip_unzip_compatible =
                               ((time_t)0x80000000L < (time_t)0L)
                               ? (dos_mdatetime == DOSTIME_MINIMUM)
                               : (dos_mdatetime >= DOSTIME_2038_01_18);
                             if (!ut_zip_unzip_compatible) {
-                            /* UnZip interpretes mtime differently than Zip;
-                               without modtime: ignore complete UT field */
+                              /* UnZip interprets mtime differently than Zip;
+                                 without modtime: ignore complete UT field */
                               flags &= ~0x0ff;  /* no time_t times available */
                               TTrace((stderr,
                                 "  UT modtime range error; ignore e.f.!\n"));
@@ -1262,6 +1394,8 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
                             /* cannot determine, safe assumption is FALSE */
                             ut_zip_unzip_compatible = FALSE;
                         }
+                        z_utim->mtime = (time_t)i_time;
+#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_MTIME;
                         TTrace((stderr,"  UT e.f. truncated; no modtime\n"));
@@ -1273,31 +1407,73 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
 
                 if (flags & EB_UT_FL_ATIME) {
                     if ((eb_idx+4) <= eb_len) {
-                        z_utim->atime = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
                         eb_idx += 4;
                         TTrace((stderr,"  UT e.f. access time = %ld\n",
-                                z_utim->atime));
-                        if (((ulg)(z_utim->atime) & (ulg)(0x80000000L)) &&
+                                i_time));
+#ifdef TIME_T_TYPE_DOUBLE
+                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
+                            if (ut_in_archive_sgn == -1)
+                              z_utim->atime =
+                                (time_t)((long)i_time | (~(long)0x7fffffffL));
+                            } else if (ut_in_archive_sgn == 1) {
+                              z_utim->atime =
+                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
+                            } else {
+                              /* sign of 32-bit time is unknown -> ignore it */
+                              flags &= ~EB_UT_FL_ATIME;
+                              TTrace((stderr,
+                                "  UT access time range error: skip time!\n"));
+                            }
+                        } else {
+                            z_utim->atime = (time_t)i_time;
+                        }
+#else /* !TIME_T_TYPE_DOUBLE */
+                        if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
                             !ut_zip_unzip_compatible) {
                             flags &= ~EB_UT_FL_ATIME;
                             TTrace((stderr,
                               "  UT access time range error: skip time!\n"));
+                        } else {
+                            z_utim->atime = (time_t)i_time;
                         }
+#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_ATIME;
                     }
                 }
                 if (flags & EB_UT_FL_CTIME) {
                     if ((eb_idx+4) <= eb_len) {
-                        z_utim->ctime = makelong((EB_HEADSIZE+eb_idx) + ef_buf);
+                        i_time = (long)makelong((EB_HEADSIZE+eb_idx) + ef_buf);
                         TTrace((stderr,"  UT e.f. creation time = %ld\n",
-                                z_utim->ctime));
-                        if (((ulg)(z_utim->ctime) & (ulg)(0x80000000L)) &&
+                                i_time));
+#ifdef TIME_T_TYPE_DOUBLE
+                        if ((ulg)(i_time) & (ulg)(0x80000000L)) {
+                            if (ut_in_archive_sgn == -1)
+                              z_utim->ctime =
+                                (time_t)((long)i_time | (~(long)0x7fffffffL));
+                            } else if (ut_in_archive_sgn == 1) {
+                              z_utim->ctime =
+                                (time_t)((ulg)i_time & (ulg)0xffffffffL);
+                            } else {
+                              /* sign of 32-bit time is unknown -> ignore it */
+                              flags &= ~EB_UT_FL_CTIME;
+                              TTrace((stderr,
+                              "  UT creation time range error: skip time!\n"));
+                            }
+                        } else {
+                            z_utim->ctime = (time_t)i_time;
+                        }
+#else /* !TIME_T_TYPE_DOUBLE */
+                        if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
                             !ut_zip_unzip_compatible) {
                             flags &= ~EB_UT_FL_CTIME;
                             TTrace((stderr,
                               "  UT creation time range error: skip time!\n"));
+                        } else {
+                            z_utim->ctime = (time_t)i_time;
                         }
+#endif /* ?TIME_T_TYPE_DOUBLE */
                     } else {
                         flags &= ~EB_UT_FL_CTIME;
                     }
@@ -1326,12 +1502,34 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
                     break;      /* Ignore IZUNIX extra field block ! */
                 }
                 if (z_utim != NULL) {
-                    z_utim->atime = makelong((EB_HEADSIZE+EB_UX_ATIME)+ef_buf);
-                    z_utim->mtime = makelong((EB_HEADSIZE+EB_UX_MTIME)+ef_buf);
-                    TTrace((stderr,"  Unix EF actime = %ld\n", z_utim->atime));
-                    TTrace((stderr,"  Unix EF modtime = %ld\n", z_utim->mtime));
                     flags |= (EB_UT_FL_MTIME | EB_UT_FL_ATIME);
-                    if ((ulg)(z_utim->mtime) & (ulg)(0x80000000L)) {
+                    i_time = (long)makelong((EB_HEADSIZE+EB_UX_MTIME)+ef_buf);
+                    TTrace((stderr,"  Unix EF modtime = %ld\n", i_time));
+#ifdef TIME_T_TYPE_DOUBLE
+                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
+                        if (dos_mdatetime == DOSTIME_MINIMUM) {
+                            ut_in_archive_sgn = -1;
+                            z_utim->mtime =
+                              (time_t)((long)i_time | (~(long)0x7fffffffL));
+                        } else if (dos_mdatetime >= DOSTIME_2038_01_18) {
+                            ut_in_archive_sgn = 1;
+                            z_utim->mtime =
+                              (time_t)((ulg)i_time & (ulg)0xffffffffL);
+                        } else {
+                            ut_in_archive_sgn = 0;
+                            /* cannot determine sign of mtime;
+                               without modtime: ignore complete UT field */
+                            flags &= ~0x0ff;    /* no time_t times available */
+                            TTrace((stderr,
+                                  "  UX modtime range error: ignore e.f.!\n"));
+                        }
+                    } else {
+                        /* cannot determine, safe assumption is FALSE */
+                        ut_in_archive_sgn = 0;
+                        z_utim->mtime = (time_t)i_time;
+                    }
+#else /* !TIME_T_TYPE_DOUBLE */
+                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
                         ut_zip_unzip_compatible =
                           ((time_t)0x80000000L < (time_t)0L)
                           ? (dos_mdatetime == DOSTIME_MINIMUM)
@@ -1347,13 +1545,38 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
                         /* cannot determine, safe assumption is FALSE */
                         ut_zip_unzip_compatible = FALSE;
                     }
-                    if ((ulg)(z_utim->atime) & (ulg)(0x80000000L) &&
+                    z_utim->mtime = (time_t)i_time;
+#endif /* ?TIME_T_TYPE_DOUBLE */
+                    i_time = (long)makelong((EB_HEADSIZE+EB_UX_ATIME)+ef_buf);
+                    TTrace((stderr,"  Unix EF actime = %ld\n", i_time));
+#ifdef TIME_T_TYPE_DOUBLE
+                    if ((ulg)(i_time) & (ulg)(0x80000000L)) {
+                        if (ut_in_archive_sgn == -1)
+                            z_utim->atime =
+                              (time_t)((long)i_time | (~(long)0x7fffffffL));
+                        } else if (ut_in_archive_sgn == 1) {
+                            z_utim->atime =
+                              (time_t)((ulg)i_time & (ulg)0xffffffffL);
+                        } else if (flags & 0x0ff) {
+                            /* sign of 32-bit time is unknown -> ignore it */
+                            flags &= ~EB_UT_FL_ATIME;
+                            TTrace((stderr,
+                                "  UX access time range error: skip time!\n"));
+                        }
+                    } else {
+                        z_utim->atime = (time_t)i_time;
+                    }
+#else /* !TIME_T_TYPE_DOUBLE */
+                    if (((ulg)(i_time) & (ulg)(0x80000000L)) &&
                         !ut_zip_unzip_compatible && (flags & 0x0ff)) {
                         /* atime not in range of UnZip's time_t */
                         flags &= ~EB_UT_FL_ATIME;
                         TTrace((stderr,
                                 "  UX access time range error: skip time!\n"));
+                    } else {
+                        z_utim->atime = (time_t)i_time;
                     }
+#endif /* ?TIME_T_TYPE_DOUBLE */
                 }
                 if (eb_len >= EB_UX_FULLSIZE && z_uidgid != NULL) {
                     z_uidgid[0] = makeword((EB_HEADSIZE+EB_UX_UID) + ef_buf);
@@ -1376,3 +1599,61 @@ unsigned ef_scan_for_izux(ef_buf, ef_len, ef_is_c, dos_mdatetime,
 }
 
 #endif /* USE_EF_UT_TIME */
+
+
+#if (defined(RISCOS) || defined(ACORN_FTYPE_NFS))
+
+#define SPARKID_2 0x30435241    /* = "ARC0" */
+
+/*******************************/
+/* Function getRISCOSexfield() */
+/*******************************/
+
+zvoid *getRISCOSexfield(ef_buf, ef_len)
+    ZCONST uch *ef_buf; /* buffer containing extra field */
+    unsigned ef_len;    /* total length of extra field */
+{
+    unsigned eb_id;
+    unsigned eb_len;
+
+/*---------------------------------------------------------------------------
+    This function scans the extra field for a Acorn SPARK filetype ef-block.
+    If a valid block is found, the function returns a pointer to the start
+    of the SPARK_EF block in the extra field buffer.  Otherwise, a NULL
+    pointer is returned.
+  ---------------------------------------------------------------------------*/
+
+    if (ef_len == 0 || ef_buf == NULL)
+        return NULL;
+
+    TTrace((stderr,"\ngetRISCOSexfield: scanning extra field of length %u\n",
+      ef_len));
+
+    while (ef_len >= EB_HEADSIZE) {
+        eb_id = makeword(EB_ID + ef_buf);
+        eb_len = makeword(EB_LEN + ef_buf);
+
+        if (eb_len > (ef_len - EB_HEADSIZE)) {
+            /* discovered some extra field inconsistency! */
+            TTrace((stderr,
+              "getRISCOSexfield: block length %u > rest ef_size %u\n", eb_len,
+              ef_len - EB_HEADSIZE));
+            break;
+        }
+
+        if (eb_id == EF_SPARK && (eb_len == 24 || eb_len == 20)) {
+            if (makelong(EB_HEADSIZE + ef_buf) == SPARKID_2) {
+                /* Return a pointer to the valid SPARK filetype ef block */
+                return (zvoid *)ef_buf;
+            }
+        }
+
+        /* Skip this extra field block */
+        ef_buf += (eb_len + EB_HEADSIZE);
+        ef_len -= (eb_len + EB_HEADSIZE);
+    }
+
+    return NULL;
+}
+
+#endif /* (RISCOS || ACORN_FTYPE_NFS) */

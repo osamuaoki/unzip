@@ -1,13 +1,24 @@
 #!/usr/bin/make -f
 
 package = unzip
-docdir = debian/tmp/usr/doc/$(package)
-history = History.540
+docdir = debian/tmp/usr/share/doc/$(package)
+history = History.550
+
+CC = gcc
+CFLAGS = -O2 -Wall
+INSTALL_PROGRAM = install
+
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+  CFLAGS += -g
+endif
+ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
+  INSTALL_PROGRAM += -s
+endif
 
 build:
 	$(checkdir)
-	$(MAKE) -f unix/Makefile \
-		CC=gcc CF="-g -O2 -Wall -I. -DACORN_FTYPE_NFS" unzips
+	$(MAKE) -f unix/Makefile LF2="" \
+		CC="$(CC)" CF="$(CFLAGS) -I. -DACORN_FTYPE_NFS" unzips
 	touch build
 
 clean:
@@ -24,14 +35,17 @@ binary-arch: checkroot build
 	-rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
 	cd debian/tmp && install -d usr/bin usr/man/man1
-	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
-	cat debian/copyright.in COPYING > $(docdir)/copyright
+	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr \
+		INSTALL_PROGRAM="$(INSTALL_PROGRAM)"
+	cat debian/copyright.in LICENSE > $(docdir)/copyright
 	cp debian/changelog $(docdir)/changelog.Debian
 	cp -p History.* BUGS ToDo $(docdir)
 	cd $(docdir) && gzip -9 changelog.Debian History.*
 	ln -s $(history).gz $(docdir)/changelog.gz
 	gzip -r9 debian/tmp/usr/man
+	cd debian/tmp && mv usr/man usr/share
 	dpkg-shlibdeps unzip
+	sh debian/mk-symlinks $(package)
 	dpkg-gencontrol -isp
 	cd debian/tmp && md5sum `find * -type f ! -regex "DEBIAN/.*"` >DEBIAN/md5sums
 	chown -R root.root debian/tmp

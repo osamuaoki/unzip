@@ -1,3 +1,11 @@
+/*
+  Copyright (c) 1990-2001 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 /* amiga.h
  *
  * Globular definitions that affect all of AmigaDom.
@@ -5,7 +13,7 @@
  * Originally included in unzip.h, extracted for simplicity and eeze of
  * maintenance by John Bush.
  *
- * THIS FILE IS #INCLUDE'd by unzip.h
+ * THIS FILE IS #INCLUDE'd by unzpriv.h
  *
  */
 
@@ -13,7 +21,6 @@
 #define __amiga_amiga_h
 
 #include "amiga/z-stat.h"     /* substitute for <stat.h> and <direct.h> */
-#include "amiga/z-time.h"                    /* substitute for <time.h> */
 #include <limits.h>
 #ifndef NO_FCNTL_H
 #  include <fcntl.h>
@@ -27,9 +34,25 @@
 #  define O_BINARY 0
 #  define direct dirent
 
+#  ifndef IZTZ_DEFINESTDGLOBALS
+#    define IZTZ_DEFINESTDGLOBALS
+#  endif
+
 #  define DECLARE_TIMEZONE
 #  define ASM_INFLATECODES
 #  define ASM_CRC
+
+   /* This compiler environment supplies a flat 32-bit address space    */
+   /* where C rtl functions are capable of handling large (32-bit-wide) */
+   /* allocations and I/O.  But, for speed on old 68000 CPUs, standard  */
+   /* ints are 16-bits wide per default.  ("size_t" is defined as       */
+   /* "unsigned long" in this case.)  The Deflate64 support requires    */
+   /* the variables for handling the decompression buffer to hold       */
+   /* 32-bit wide integers.  The INT_16BIT symbol defined below forces  */
+   /* the declarations of these variables to use "unsigned long" type.  */
+#  ifndef _INT32
+#    define INT_16BIT                   /* or deflate64 stuff will fail */
+#  endif
 
 /* Note that defining REENTRANT will not eliminate all global/static */
 /* variables.  The functions we use from c.lib, including stdio, are */
@@ -77,6 +100,10 @@
 #    include "memwatch.h"
 #    undef getenv
 #  endif /* MWDEBUG */
+#  ifndef IZTZ_SETLOCALTZINFO
+     /*  XXX !!  We have really got to find a way to operate without these. */
+#    define IZTZ_SETLOCALTZINFO
+#  endif
 #endif /* SASC */
 
 
@@ -84,6 +111,16 @@
 #define USE_EF_UT_TIME
 #if (!defined(NOTIMESTAMP) && !defined(TIMESTAMP))
 #  define TIMESTAMP
+#endif
+
+#ifndef IZTZ_GETLOCALETZINFO
+#  define IZTZ_GETLOCALETZINFO GetPlatformLocalTimezone
+#endif
+/* the amiga port uses Info-ZIP's own timezone library, which includes
+ * a "working" mktime() implementation
+ */
+#ifndef HAVE_MKTIME
+#  define HAVE_MKTIME
 #endif
 
 /* check that TZ environment variable is defined before using UTC times */
@@ -105,19 +142,19 @@
 
 /* Funkshine Prough Toe Taipes */
 
-int Agetch (void);              /* getch() like function, in amiga/filedate.c */
-LONG FileDate (char *, time_t[]);
-int windowheight (BPTR fh);
+extern int real_timezone_is_set;
+void tzset(void);
+#define VALID_TIMEZONE(tempvar) (tzset(), real_timezone_is_set)
+
+int Agetch(void);               /* getch() like function, in amiga/filedate.c */
+LONG FileDate(char *, time_t[]);
+int screensize(int *ttrows, int *ttcols);
 void _abort(void);              /* ctrl-C trap */
 
-#define SCREENLINES windowheight(Output())
-
-#ifdef USE_TIME_LIB
-   extern int real_timezone_is_set;
-#  define VALID_TIMEZONE(tempvar) (tzset(), real_timezone_is_set)
-#else
-#  define VALID_TIMEZONE(tempvar) ((tempvar = getenv("TZ")) && tempvar[0])
-#endif
+#define SCREENSIZE(ttrows, ttcols) screensize(ttrows, ttcols)
+#define SCREENWIDTH 80
+#define SCREENLWRAP 1
+#define TABSIZE     8
 
 /* Static variables that we have to add to Uz_Globs: */
 #define SYSTEM_SPECIFIC_GLOBALS \
@@ -126,7 +163,8 @@ void _abort(void);              /* ctrl-C trap */
     int created_dir, renamed_fullpath, rootlen;\
     char *rootpath, *buildpath, *build_end;\
     DIR *wild_dir;\
-    char *dirname, *wildname, matchname[FILNAMSIZ];\
+    ZCONST char *wildname;\
+    char *dirname, matchname[FILNAMSIZ];\
     int dirnamelen, notfirstcall;
 
 /* filenotes[] and filenote_slot are for the -N option that restores      */

@@ -1,3 +1,11 @@
+/*
+  Copyright (c) 1990-2001 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 /*---------------------------------------------------------------------------
 
   api.c
@@ -35,10 +43,10 @@
 
 #define UNZIP_INTERNAL
 #include "unzip.h"
-#include "version.h"
 #ifdef WINDLL
 #  include "windll/windll.h"
 #endif
+#include "unzvers.h"
 
 #ifdef DLL      /* This source file supplies DLL-only interface code. */
 
@@ -61,8 +69,8 @@ UzpVer * UZ_EXP UzpVersion()   /* should be pointer to const struct */
 #else
     version.flag = 0;
 #endif
-    version.betalevel = BETALEVEL;
-    version.date = VERSION_DATE;
+    version.betalevel = UZ_BETALEVEL;
+    version.date = UZ_VERSION_DATE;
 
 #ifdef ZLIB_VERSION
     version.zlib_version = ZLIB_VERSION;
@@ -74,20 +82,20 @@ UzpVer * UZ_EXP UzpVersion()   /* should be pointer to const struct */
     /* someday each of these may have a separate patchlevel: */
     version.unzip.major = UZ_MAJORVER;
     version.unzip.minor = UZ_MINORVER;
-    version.unzip.patchlevel = PATCHLEVEL;
+    version.unzip.patchlevel = UZ_PATCHLEVEL;
 
     version.zipinfo.major = ZI_MAJORVER;
     version.zipinfo.minor = ZI_MINORVER;
-    version.zipinfo.patchlevel = PATCHLEVEL;
+    version.zipinfo.patchlevel = UZ_PATCHLEVEL;
 
     /* these are retained for backward compatibility only: */
     version.os2dll.major = UZ_MAJORVER;
     version.os2dll.minor = UZ_MINORVER;
-    version.os2dll.patchlevel = PATCHLEVEL;
+    version.os2dll.patchlevel = UZ_PATCHLEVEL;
 
     version.windll.major = UZ_MAJORVER;
     version.windll.minor = UZ_MINORVER;
-    version.windll.patchlevel = PATCHLEVEL;
+    version.windll.patchlevel = UZ_PATCHLEVEL;
 
     return &version;
 }
@@ -102,8 +110,8 @@ void UZ_EXP UzpVersion2(UzpVer2 *version)
 #else
     version->flag = 0;
 #endif
-    strcpy(version->betalevel, BETALEVEL);
-    strcpy(version->date, VERSION_DATE);
+    strcpy(version->betalevel, UZ_BETALEVEL);
+    strcpy(version->date, UZ_VERSION_DATE);
 
 #ifdef ZLIB_VERSION
     strcpy(version->zlib_version, ZLIB_VERSION);
@@ -115,20 +123,20 @@ void UZ_EXP UzpVersion2(UzpVer2 *version)
     /* someday each of these may have a separate patchlevel: */
     version->unzip.major = UZ_MAJORVER;
     version->unzip.minor = UZ_MINORVER;
-    version->unzip.patchlevel = PATCHLEVEL;
+    version->unzip.patchlevel = UZ_PATCHLEVEL;
 
     version->zipinfo.major = ZI_MAJORVER;
     version->zipinfo.minor = ZI_MINORVER;
-    version->zipinfo.patchlevel = PATCHLEVEL;
+    version->zipinfo.patchlevel = UZ_PATCHLEVEL;
 
     /* these are retained for backward compatibility only: */
     version->os2dll.major = UZ_MAJORVER;
     version->os2dll.minor = UZ_MINORVER;
-    version->os2dll.patchlevel = PATCHLEVEL;
+    version->os2dll.patchlevel = UZ_PATCHLEVEL;
 
     version->windll.major = UZ_MAJORVER;
     version->windll.minor = UZ_MINORVER;
-    version->windll.patchlevel = PATCHLEVEL;
+    version->windll.patchlevel = UZ_PATCHLEVEL;
 }
 
 
@@ -157,7 +165,7 @@ int UZ_EXP UzpAltMain(int argc, char *argv[], UzpInit *init)
         (*init->userfn)();    /* allow void* arg? */
 
     r = unzip(__G__ argc, argv);
-    DESTROYGLOBALS()
+    DESTROYGLOBALS();
     RETURN(r);
 }
 
@@ -227,12 +235,12 @@ int UZ_EXP UzpUnzipToMemory(char *zip, char *file, UzpOpts *optflgs,
 #if (defined(WINDLL) && !defined(CRTL_CP_IS_ISO))
     intern_zip = (char *)malloc(strlen(zip)+1);
     if (intern_zip == NULL) {
-       DESTROYGLOBALS()
+       DESTROYGLOBALS();
        return PK_MEM;
     }
     intern_file = (char *)malloc(strlen(file)+1);
     if (intern_file == NULL) {
-       DESTROYGLOBALS()
+       DESTROYGLOBALS();
        free(intern_zip);
        return PK_MEM;
     }
@@ -257,7 +265,7 @@ int UZ_EXP UzpUnzipToMemory(char *zip, char *file, UzpOpts *optflgs,
 
     r = (unzipToMemory(__G__ zip, file, retstr) <= PK_WARN);
 
-    DESTROYGLOBALS()
+    DESTROYGLOBALS();
 #if (defined(WINDLL) && !defined(CRTL_CP_IS_ISO))
 #  undef file
 #  undef zip
@@ -307,7 +315,7 @@ int UZ_EXP UzpFileTree(char *name, cbList(callBack), char *cpInclude[],
 
     G.processExternally = callBack;
     r = process_zipfiles(__G)==0;
-    DESTROYGLOBALS()
+    DESTROYGLOBALS();
     return r;
 }
 
@@ -374,7 +382,8 @@ int redirect_outfile(__G)
     if ((ulg)((extent)G.redirect_size) != G.redirect_size)
         return FALSE;
 #endif
-    G.redirect_pointer = G.redirect_buffer = malloc(G.redirect_size+1);
+    G.redirect_pointer = 
+      G.redirect_buffer = malloc((extent)(G.redirect_size+1));
 #endif
     if (!G.redirect_buffer)
         return FALSE;
@@ -384,10 +393,10 @@ int redirect_outfile(__G)
 
 
 
-int writeToMemory(__GPRO__ uch *rawbuf, ulg size)
+int writeToMemory(__GPRO__ ZCONST uch *rawbuf, extent size)
 {
-    if (rawbuf != G.redirect_pointer)
-        memcpy(G.redirect_pointer,rawbuf,size);
+    if ((uch *)rawbuf != G.redirect_pointer)
+        memcpy(G.redirect_pointer, rawbuf, size);
     G.redirect_pointer += size;
     return 0;
 }
@@ -400,7 +409,7 @@ int close_redirect(__G)
 {
     if (G.pInfo->textmode) {
         *G.redirect_pointer = '\0';
-        G.redirect_size = G.redirect_pointer - G.redirect_buffer;
+        G.redirect_size = (ulg)(G.redirect_pointer - G.redirect_buffer);
         if ((G.redirect_buffer =
              realloc(G.redirect_buffer, G.redirect_size + 1)) == NULL) {
             G.redirect_size = 0;

@@ -1,3 +1,60 @@
+unzip (5.50-1woody2) stable-security; urgency=high
+
+  * Fixed "unzip directory traversal revisited" again (Closes: #206439).
+    There was still a missing case that the previous patch didn't catch.
+    Patch borrowed from unzip-5.50-33.src.rpm.
+  * For reference, this is (still) CAN-2003-0282.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 20 Aug 2003 22:17:42 +0200
+
+unzip (5.50-1woody1) stable-security; urgency=high
+
+  * Fixed "unzip directory traversal revisited" problem (Closes: #199648).
+    A filename containing ".somenonprintablechar." will not unpack
+    into .. anymore. Patch borrowed from unzip-5.50-11.src.rpm.
+    (CAN-2003-0282)
+
+ -- Santiago Vila <sanvila@debian.org>  Mon,  7 Jul 2003 19:49:08 +0200
+
+unzip (5.50-1) unstable; urgency=low
+
+  * New upstream release.
+  * Moved from non-US/main to main. Section: utils.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 24 Mar 2002 15:54:12 +0100
+
+unzip (5.42-3) unstable; urgency=low
+
+  * Added support for DEB_BUILD_OPTIONS.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 11 Nov 2001 16:25:00 +0100
+
+unzip (5.42-2) unstable; urgency=low
+
+  * Applied a patch from Marcus Brinkmann:
+  - Closes: #99699: unzip does not build on the Hurd.
+  - Modified debian/rules to support cross-compilation.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed,  6 Jun 2001 16:40:14 +0200
+
+unzip (5.42-1) unstable; urgency=low
+
+  * New upstream release.
+  * Changed to Section: non-US.
+  * Removed "packaged for Debian" from extended description.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 10 May 2001 16:47:41 +0200
+
+unzip (5.41-1) unstable; urgency=low
+
+  * New upstream release, featuring a new BSD-like license and built-in
+    encryption support. Moved to non-US/main.
+  * Copyright file now generated from LICENSE file.
+  * Versioned Conflicts and Replaces.
+  * Standards-Version: 3.1.1
+
+ -- Santiago Vila <sanvila@debian.org>  Fri, 18 Aug 2000 19:03:59 +0200
+
 unzip (5.40-1) unstable; urgency=low
 
   * New upstream release.
