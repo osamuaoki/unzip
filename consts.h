@@ -3,13 +3,13 @@
   consts.h
 
   This file contains global, initialized variables that never change.  It is
-  included by unzip.c and wizunzip.c.
+  included by unzip.c and windll/dllsetup.c.
 
   ---------------------------------------------------------------------------*/
 
 
 /* And'ing with mask_bits[n] masks the lower n bits */
-ush near mask_bits[] = {
+ZCONST ush near mask_bits[] = {
     0x0000,
     0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff,
     0x01ff, 0x03ff, 0x07ff, 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff
@@ -17,10 +17,13 @@ ush near mask_bits[] = {
 
 char Far VersionDate[] = VERSION_DATE;   /* now defined in version.h */
 
+#ifndef SFX
+   char Far EndSigMsg[] = 
+   "\nnote:  didn't find end-of-central-dir signature at end of central dir.\n";
+#endif
+
 char Far CentSigMsg[] =
   "error:  expected central file header signature not found (file #%u).\n";
-char Far EndSigMsg[] = "\nnote:\
-  didn't find end-of-central-dir signature at end of central dir.\n";
 char Far SeekMsg[] =
   "error [%s]:  attempt to seek before beginning of zipfile\n%s";
 char Far FilenameNotMatched[] = "caution: filename not matched:  %s\n";

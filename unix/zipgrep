@@ -1,7 +1,6 @@
 #! /bin/sh
 # zipgrep: searches the given zip members for a string or pattern
-# This shell script assumes that you have installed unzip and zipinfo, which
-# are part of the unzip package.
+# This shell script assumes that you have installed UnZip.
 
 pat=""
 opt=""
@@ -39,17 +38,17 @@ if test -n "$opt"; then
 fi
 
 res=0
-for i in `zipinfo -1 "$zipfile" ${1+"$@"}`; do
+for i in `unzip -Z1 "$zipfile" ${1+"$@"}`; do
   if test $list -eq 1; then
 
-    unzip -p "$zipfile" "$i" | egrep $opt "$pat" > /dev/null && echo $i
+    unzip -p-L "$zipfile" "$i" | egrep $opt "$pat" > /dev/null && echo $i
     r=$?
   elif test $silent -eq 1; then
 
-    unzip -p "$zipfile" "$i" | egrep $opt "$pat"
+    unzip -p-L "$zipfile" "$i" | egrep $opt "$pat"
     r=$?
   else
-    unzip -p "$zipfile" "$i" | egrep $opt "$pat" | sed "s|^|${i}:|"
+    unzip -p-L "$zipfile" "$i" | egrep $opt "$pat" | sed "s|^|${i}:|"
     r=$?
   fi
   test "$r" -ne 0 && res="$r"

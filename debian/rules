@@ -3,7 +3,7 @@
 package = unzip
 dtudp = debian/tmp/usr/doc/$(package)
 
-build: 
+build:
 	$(checkdir)
 	make -f unix/Makefile CF="-O2 -I." LDFLAGS="-s" unzips
 	touch build
@@ -21,19 +21,19 @@ binary-arch: checkroot build
 	$(checkdir)
 	-rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN
-	cd debian/tmp && install -d usr/doc/unzip usr/bin usr/man/man1
+	cd debian/tmp && install -d usr/doc/$(package) usr/bin usr/man/man1
 	make -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
-	gzip -9 debian/tmp/usr/man/man1/*
-	cp debian/copyright $(dtudp)
+	cat debian/copyright.in COPYING > $(dtudp)/copyright
 	cp debian/changelog $(dtudp)/changelog.Debian
-	cp -p History.520 BUGS ToDo $(dtudp)
-	cd $(dtudp) && gzip -9 changelog.Debian History.520
-	cd $(dtudp) && ln -s History.520.gz changelog.gz
+	cp -p History.* BUGS ToDo debian/email-from-greg $(dtudp)
+	cd $(dtudp) && gzip -9 changelog.Debian History.*
+	ln -s History.532.gz $(dtudp)/changelog.gz
+	gzip -r9 debian/tmp/usr/man
 	dpkg-shlibdeps unzip
 	dpkg-gencontrol
+	cd debian/tmp && md5sum `find * -type f ! -regex "DEBIAN/.*"` >DEBIAN/md5sums
 	chown -R root.root debian/tmp
-	# Set the permissions as they should be - just to make sure.
-	chmod -R g-ws,a+rX,u+w,o-w debian/tmp
+	chmod -R go=rX debian/tmp
 	dpkg --build debian/tmp ..
 
 define checkdir

@@ -7,6 +7,7 @@
              find_vms_attrs()
              flush()
              close_outfile()
+             close_infile()
              getVMMVSexfield()
              do_wild()
              mapattr()
@@ -32,38 +33,42 @@ FILE *vmmvs_open_infile(__G)
 {
    FILE *fzip;
 
+   G.tempfn = NULL;
    if ((fzip = fopen(G.zipfn,"rb,recfm=fb")) == (FILE *)NULL) {
+      size_t cnt;
       char *buf;
       FILE *in, *out;
 
       if ((buf = (char *)malloc(32768)) == NULL) return NULL;
+      if ((G.tempfn = tmpnam(NULL)) == NULL) return NULL;
       if ((in = fopen(G.zipfn,"rb")) != NULL &&
-          (out = fopen("tt$$zz.z$$","wb  ,recfm=fb")) != NULL) {
+          (out = fopen(G.tempfn,"wb,recfm=fb,lrecl=1")) != NULL) {
          Trace((stdout,"Converting ZIP file to fixed record format...\n"));
          while (!feof(in)) {
-            fread(buf,1,32768,in);
-            fwrite(buf,1,32768,out);
+            cnt= fread(buf,1,32768,in);
+            if (cnt) fwrite(buf,1,cnt,out);
          }
       }
       else {
+         free(buf);
          fclose(out);
          fclose(in);
          return NULL;
       }
+      free(buf);
       fclose(out);
       fclose(in);
-      if (remove(G.zipfn) == 0) {
-         rename("tt$$zz.z$$",G.zipfn);
-         fzip = fopen(G.zipfn,"rb,recfm=fb");
-      }
+
+      fzip = fopen(G.tempfn,"rb,recfm=fb");
       if (fzip == (FILE *)NULL) return NULL;
 
-      /* Update the G.ziplen value, it might have changed after the
-         reformatting copying. */
+      /* Update the G.ziplen value since it might have changed after
+         the reformatting copy. */
       fseek(fzip,0L,SEEK_SET);
       fseek(fzip,0L,SEEK_END);
       G.ziplen = ftell(fzip);
    }
+
    return fzip;
 }
 
@@ -82,7 +87,7 @@ int open_outfile(__G)           /* return 1 if fail */
         mode = FOPWT;
     else {
         if (G.lrec.extra_field_length > EB_HEADSIZE) {
-            ush leb_id = makeword(&G.extra_field[EB_ID]);
+            ush leb_id   = makeword(&G.extra_field[EB_ID]);
             ush leb_dlen = makeword(&G.extra_field[EB_LEN]);
 
             if ((leb_id == EF_VMCMS || leb_id == EF_MVS) &&
@@ -93,9 +98,11 @@ int open_outfile(__G)           /* return 1 if fail */
     }
     if (mode == NULL) mode = FOPW;
 
+    Trace((stderr, "Output file='%s' opening with '%s'\n", G.filename,type));
     if ((G.outfile = fopen(G.filename, mode)) == (FILE *)NULL) {
         Info(slide, 0x401, ((char *)slide, "\nerror:  cannot create %s\n",
              G.filename));
+        Trace((stderr, "error %d: '%s'\n", errno, strerror(errno)));
         return 1;
     }
     return 0;
@@ -113,6 +120,23 @@ void close_outfile(__G)
 } /* end function close_outfile() */
 
 
+/****************************/
+/* Function close_infile() */
+/****************************/
+
+void close_infile(__G)
+   __GDEF
+{
+   fclose(G.zipfd);
+
+   /* If we're working from a temp file, erase it now */
+   if (G.tempfn)
+      remove(G.tempfn);
+
+} /* end function close_infile() */
+
+
+
 /******************************/
 /* Function getVMMVSexfield() */
 /******************************/
@@ -123,6 +147,7 @@ extent getVMMVSexfield(type, ef_block, datalen)
     unsigned datalen;
 {
     fldata_t *fdata = (fldata_t *) &ef_block[4];
+    unsigned long lrecl;
 
     if (datalen < sizeof(fldata_t))
         return 0;
@@ -141,10 +166,18 @@ extent getVMMVSexfield(type, ef_block, datalen)
     if (fdata->__recfmS)   strcat(type, "S");
     if (fdata->__recfmASA) strcat(type, "A");
     if (fdata->__recfmM)   strcat(type, "M");
-    sprintf(type+strlen(type), ",lrecl=%ld", fdata->__recfmV
-                                              ? fdata->__maxreclen+4
-                                              : fdata->__maxreclen);
+    lrecl = fdata->__recfmV ? fdata->__maxreclen+4
+                            : fdata->__maxreclen;
+    sprintf(type+strlen(type), ",lrecl=%ld", lrecl);
+
+#ifdef VM_CMS
+    /* For CMS, use blocksize for FB files only, otherwise use LRECL */
+    if (fdata->__recfmBlk)
+       sprintf(type+strlen(type), ",blksize=%ld", fdata->__blksize);
+#else
+    /* For MVS, always use blocksize */
     sprintf(type+strlen(type), ",blksize=%ld", fdata->__blksize);
+#endif
 
     return strlen(type);
 } /* end function getVMMVSexfield() */
@@ -213,7 +246,7 @@ int mapname(__G__ renamed)
        strcpy(lbar,(lbar)+1);
        name_changed = 1;
     }
-#endif
+    /* '-' and '+' ARE valid chars for CMS.  --RGH  */
     while ((lbar = strrchr(G.filename,'+')) != NULL) {
        strcpy(lbar,(lbar)+1);
        name_changed = 1;
@@ -222,6 +255,8 @@ int mapname(__G__ renamed)
        strcpy(lbar,(lbar)+1);
        name_changed = 1;
     }
+#endif
+
     while ((lbar = strrchr(G.filename,'(')) != NULL) {
        strcpy(lbar,(lbar)+1);
        name_changed = 1;
@@ -230,6 +265,7 @@ int mapname(__G__ renamed)
        strcpy(lbar,(lbar)+1);
        name_changed = 1;
     }
+
 #ifdef VM_CMS
     if ((lbar = strrchr(G.filename,'/')) != NULL) {
         strcpy((char *)newname,(char *)((lbar)+1));
@@ -253,7 +289,7 @@ int mapname(__G__ renamed)
         strcat(pmember, ")");
     }
 
-    /* Remove all `internal' dots '.', to prevent false consideration as
+    /* Remove all 'internal' dots '.', to prevent false consideration as
      * MVS path delimiters! */
     while ((lbar = strrchr(G.filename,'.')) != NULL) {
         strcpy(lbar,(lbar)+1);
@@ -264,6 +300,7 @@ int mapname(__G__ renamed)
     while ((lbar = strchr(G.filename,'/')) != NULL)
         *lbar = '.';
 #endif /* ?VM_CMS */
+
 #ifndef MVS
     if ((lbar = strchr(G.filename,'.')) == (char *)NULL) {
         printf("WARNING: file '%s' has NO extension - renamed as '%s.NONAME'\n"\
@@ -361,8 +398,10 @@ int checkdir(__G__ pathcomp, flag)
 
     if (FUNCTION == END) {
         Trace((stderr, "freeing rootpath\n"));
-        if (rootlen > 0)
+        if (rootlen > 0) {
             free(rootpath);
+            rootlen = 0;
+        }
         return 0;
     }
 
@@ -401,7 +440,7 @@ int stat(const char *path, struct stat *buf)
    char fname[PATH_MAX];
    time_t ltime;
 
-   if ((fp = fopen(path, "r")) != NULL) {
+   if ((fp = fopen(path, "rb")) != NULL) {
       fldata_t fdata;
       if (fldata( fp, fname, &fdata ) == 0) {
          buf->st_dev  = fdata.__device;
@@ -427,6 +466,52 @@ int stat(const char *path, struct stat *buf)
 
 
 
+/***************************/
+/*  Function main_vmmvs()  */
+/***************************/
+
+/* This function is called as main() to parse arguments                */
+/* into argc and argv.  This is required for stand-alone               */
+/* execution.  This calls the "real" main() when done.                 */
+
+#ifdef STAND_ALONE
+int MAIN_VMMVS(void)
+   {
+    int  argc=0;
+    char *argv[50];
+
+    int  iArgLen;
+    char argstr[256];
+    char **pEPLIST, *pCmdStart, *pArgStart, *pArgEnd;
+
+   /* Get address of extended parameter list from S/370 Register 0 */
+   pEPLIST = (char **)__xregs(0);
+
+   /* Null-terminate the argument string */
+   pCmdStart = *(pEPLIST+0);
+   pArgStart = *(pEPLIST+1);
+   pArgEnd   = *(pEPLIST+2);
+   iArgLen   = pArgEnd - pCmdStart + 1;
+
+   /* Make a copy of the command string */
+   memcpy(argstr, pCmdStart, iArgLen);
+   argstr[iArgLen] = '\0';  /* Null-terminate */
+
+   /* Store first token (cmd) */
+   argv[argc++] = strtok(argstr, " ");
+
+   /* Store the rest (args) */
+   while (argv[argc-1])
+      argv[argc++] = strtok(NULL, " ");
+   argc--;  /* Back off last NULL entry */
+
+   /* Call "real" main() function */
+   return MAIN(argc, argv);
+}
+#endif  /* STAND_ALONE */
+
+
+
 #ifndef SFX
 
 /************************/
@@ -437,22 +522,48 @@ void version(__G)
     __GDEF
 {
     int len;
+    char liblvlmsg [50+1];
+
+    union {
+       unsigned int iVRM;
+       struct {
+          unsigned int v:8;
+          unsigned int r:8;
+          unsigned int m:8;
+       } xVRM;
+    } VRM;
+
+    /* Break down the runtime library level */
+    VRM.iVRM = __librel();
+    sprintf(liblvlmsg, ".  Runtime level V%dR%dM%d",
+            VRM.xVRM.v, VRM.xVRM.r, VRM.xVRM.m);
+
+
+    /* Output is in the form "Compiled with %s%s for %s%s%s%s" */
 
     len = sprintf((char *)slide, LoadFarString(CompiledWith),
 
-      "C/370", " 2.1",
+    /* Add compiler name and level */
+      "C/370", "",          /* Assumed.  Can't get compiler lvl(?) */
+
+    /* Add compile environment */
 #ifdef VM_CMS
       "VM/CMS",
 #else
       "MVS",
 #endif
-      "",
 
+    /* Add timestamp */
 #ifdef __DATE__
-      " on ", __DATE__
-#else
-      "", ""
+      " on " __DATE__
+#ifdef __TIME__
+     " at " __TIME__
 #endif
+     ".\n", "",
+#else
+      "", "",
+#endif
+      liblvlmsg
     );
 
     (*G.message)((zvoid *)&G, slide, (ulg)len, 0);

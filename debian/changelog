@@ -1,3 +1,26 @@
+unzip (5.32-1) unstable; urgency=low
+
+  * New upstream release, using pristine source.
+
+ -- Santiago Vila <sanvila@ctv.es>  Tue,  4 Nov 1997 14:19:20 +0100
+
+unzip (5.31-2) unstable; urgency=low
+
+  * Removed debstd dependency.
+
+ -- Santiago Vila <sanvila@ctv.es>  Fri, 17 Oct 1997 17:22:22 +0200
+
+unzip (5.31-1) unstable; urgency=low
+
+  * `copyright' file is generated from COPYING automatically.
+  * Distribution unstable, Section non-free.
+  * Conflicts and Replaces "unzip-crypt".
+  * New upstream release.
+  * First libc6 release.
+  * Added md5sums.
+
+ -- Santiago Vila <sanvila@ctv.es>  Fri, 12 Sep 1997 19:16:59 +0200
+
 unzip (5.20-3) unstable; urgency=low
 
   * Changed priority from `extra' to `optional'.

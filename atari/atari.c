@@ -11,6 +11,7 @@
              checkdir()
              mkdir()
              close_outfile()
+             stamp_file()        [optional feature]
              version()
 
   Due to the amazing MiNT library being very, very close to BSD unix's
@@ -65,7 +66,7 @@ char *do_wild(__G__ wildspec)
             dirnamelen = wildname - wildspec;
             if ((dirname = (char *)malloc(dirnamelen+1)) == (char *)NULL) {
                 Info(slide, 0x201, ((char *)slide,
-                  "warning:  can't allocate wildcard buffers\n"));
+                  "warning:  cannot allocate wildcard buffers\n"));
                 strcpy(matchname, wildspec);
                 return matchname;   /* but maybe filespec was not a wildcard */
             }
@@ -148,9 +149,11 @@ int mapattr(__G)
 
     switch (G.pInfo->hostnum) {
         case UNIX_:
-        case ATARI_:
-            /* minix filesystem under MiNT on Atari [cjh] */
         case VMS_:
+        case ACORN_:
+        case ATARI_:
+        case BEOS_:
+        case QDOS_:
             G.pInfo->file_attr = (unsigned)(tmp >> 16);
             return 0;
         case AMIGA_:
@@ -184,12 +187,11 @@ int mapattr(__G)
 /************************/
 /*  Function mapname()  */
 /************************/
-
-int mapname(__G__ renamed)   /* return 0 if no error, 1 if caution (filename */
-    __GDEF                   /* truncated), 2 if warning (skip file because  */
-    int renamed;             /* dir doesn't exist), 3 if error (skip file),  */
-                             /* 10 if no memory (skip file)                  */
-{
+                             /* return 0 if no error, 1 if caution (filename */
+int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
+    __GDEF                   /*  dir doesn't exist), 3 if error (skip file), */
+    int renamed;             /*  or 10 if out of memory (skip file) */
+{                            /*  [also IZ_VOL_LABEL, IZ_CREATED_DIR] */
     char pathcomp[FILNAMSIZ];    /* path-component buffer */
     char *pp, *cp=(char *)NULL;  /* character pointers */
     char *lastsemi=(char *)NULL; /* pointer to last semi-colon in pathcomp */
@@ -286,8 +288,11 @@ int mapname(__G__ renamed)   /* return 0 if no error, 1 if caution (filename */
 
     if (G.filename[strlen(G.filename) - 1] == '/') {
         checkdir(__G__ G.filename, GETPATH);
-        if (created_dir && QCOND2) {
-            Info(slide, 0, ((char *)slide, "   creating: %s\n", G.filename));
+        if (created_dir) {
+            if (QCOND2) {
+                Info(slide, 0, ((char *)slide, "   creating: %s\n",
+                  G.filename));
+            }
             return IZ_CREATED_DIR;   /* set dir time (note trailing '/') */
         }
         return 2;   /* dir existed already; don't look for data to extract */
@@ -299,7 +304,7 @@ int mapname(__G__ renamed)   /* return 0 if no error, 1 if caution (filename */
         return 3;
     }
 
-    checkdir(__G__ pathcomp, APPEND_NAME);   /* returns 1 if truncated: care? */
+    checkdir(__G__ pathcomp, APPEND_NAME);  /* returns 1 if truncated: care? */
     checkdir(__G__ G.filename, GETPATH);
 
     return error;
@@ -323,7 +328,7 @@ int mapname(__G__ renamed)   /* return 0 if no error, 1 if caution (filename */
         (d:/tmp/unzip/jj/temp/)            (disk:[tmp.unzip.jj.temp.)
     finally add filename itself and check for existence? (could use with rename)
         (d:/tmp/unzip/jj/temp/msg.outdir)  (disk:[tmp.unzip.jj.temp]msg.outdir)
-    checkdir(name, COPYFREE)     -->  copy path to name and free space
+    checkdir(name, GETPATH)     -->  copy path to name and free space
 
 #endif /* 0 */
 
@@ -399,7 +404,7 @@ int checkdir(__G__ pathcomp, flag)
             }
             if (mkdir(buildpath, 0777) == -1) {   /* create the directory */
                 Info(slide, 1, ((char *)slide,
-                  "checkdir error:  can't create %s\n\
+                  "checkdir error:  cannot create %s\n\
                  unable to process %s.\n", buildpath, G.filename));
                 free(buildpath);
                 return 3;      /* path didn't exist, tried to create, failed */
@@ -522,7 +527,7 @@ int checkdir(__G__ pathcomp, flag)
                  * and create more than one level, but why really necessary?) */
                 if (mkdir(pathcomp, 0777) == -1) {
                     Info(slide, 1, ((char *)slide,
-                      "checkdir:  can't create extraction directory: %s\n",
+                      "checkdir:  cannot create extraction directory: %s\n",
                       pathcomp));
                     rootlen = 0;   /* path didn't exist, tried to create, and */
                     return 3;  /* failed:  file exists, or 2+ levels required */
@@ -547,8 +552,10 @@ int checkdir(__G__ pathcomp, flag)
 
     if (FUNCTION == END) {
         Trace((stderr, "freeing rootpath\n"));
-        if (rootlen > 0)
+        if (rootlen > 0) {
             free(rootpath);
+            rootlen = 0;
+        }
         return 0;
     }
 
@@ -566,6 +573,10 @@ int checkdir(__G__ pathcomp, flag)
 void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     __GDEF
 {
+#ifdef USE_EF_UT_TIME
+    unsigned eb_izux_flags;
+    iztimes zt;
+#endif
     ztimbuf tp;
 
 /*---------------------------------------------------------------------------
@@ -600,7 +611,8 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         fclose(G.outfile);                  /* close "data" file for good... */
         unlink(G.filename);                 /* ...and delete it */
         linktarget[ucsize] = '\0';
-        Info(slide, 0, ((char *)slide, "-> %s ", linktarget));
+        if (QCOND2)
+            Info(slide, 0, ((char *)slide, "-> %s ", linktarget));
         if (symlink(linktarget, G.filename))  /* create the real link */
             perror("symlink error");
         free(linktarget);
@@ -616,33 +628,39 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     light savings time differences.
   ---------------------------------------------------------------------------*/
 
-#ifdef USE_EF_UX_TIME
-    if (G.extra_field &&
-        ef_scan_for_izux(G.extra_field, G.lrec.extra_field_length,
-                         &tp, NULL) > 0) {
-        TTrace((stderr, "\nclose_outfile:  Unix e.f. access time = %ld\n",
-          tp.actime));
-        TTrace((stderr, "close_outfile:  Unix e.f. modif. time = %ld\n",
+#ifdef USE_EF_UT_TIME
+    eb_izux_flg = (G.extra_field ? ef_scan_for_izux(G.extra_field,
+                   G.lrec.extra_field_length, 0, G.lrec.last_mod_file_date,
+                   &zt, NULL) : 0);
+    if (eb_izux_flg & EB_UT_FL_MTIME) {
+        tp.modtime = zt.mtime;
+        TTrace((stderr, "\nclose_outfile:  Unix e.f. modif. time = %ld\n",
           tp.modtime));
     } else {
-        tp.actime = tp.modtime = dos_to_unix_time(G.lrec.last_mod_file_date,
-                                                  G.lrec.last_mod_file_time);
-
+        tp.modtime = dos_to_unix_time(G.lrec.last_mod_file_date,
+                                      G.lrec.last_mod_file_time);
+    }
+    if (eb_izux_flg & EB_UT_FL_ATIME) {
+        tp.actime = zt.atime;
+        TTrace((stderr, "close_outfile:  Unix e.f. access time = %ld\n",
+          tp.actime));
+    } else {
+        tp.actime = tp.modtime;
         TTrace((stderr, "\nclose_outfile:  modification/access times = %ld\n",
           tp.modtime));
     }
-#else /* !USE_EF_UX_TIME */
+#else /* !USE_EF_UT_TIME */
     tp.actime = tp.modtime = dos_to_unix_time(G.lrec.last_mod_file_date,
                                               G.lrec.last_mod_file_time);
 
     TTrace((stderr, "\nclose_outfile:  modification/access times = %ld\n",
       tp.modtime));
-#endif /* ?USE_EF_UX_TIME */
+#endif /* ?USE_EF_UT_TIME */
 
     /* set the file's access and modification times */
     if (utime(G.filename, &tp))
         Info(slide, 0x201, ((char *)slide,
-          "warning:  can't set the time for %s\n", G.filename));
+          "warning:  cannot set the time for %s\n", G.filename));
 
 /*---------------------------------------------------------------------------
     Change the file permissions from default ones to those stored in the
@@ -655,6 +673,28 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
 #endif
 
 } /* end function close_outfile() */
+
+
+
+
+#ifdef TIMESTAMP
+
+/***************************/
+/*  Function stamp_file()  */
+/***************************/
+
+int stamp_file(fname, modtime)
+    ZCONST char *fname;
+    time_t modtime;
+{
+    ztimbuf tp;
+
+    tp.modtime = tp.actime = modtime;
+    return (utime(fname, &tp));
+
+} /* end function stamp_file() */
+
+#endif /* TIMESTAMP */
 
 
 
