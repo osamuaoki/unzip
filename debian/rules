@@ -1,0 +1,58 @@
+#!/usr/bin/make -f
+#
+# Last updated: Sun Sep  1 18:00:42 EST 1996 by sjlam.
+
+package=unzip
+
+build: 
+	$(checkdir)
+	make -f unix/Makefile CC="gcc" CFLAGS="-O2" LDFLAGS="-s" linux
+	touch build
+
+clean:
+	$(checkdir)
+	-rm -f build
+	-make clean
+	-rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
+
+binary-indep: checkroot build
+	$(checkdir)
+
+binary-arch: checkroot build
+	$(checkdir)
+	-rm -rf debian/tmp
+	install -d debian/tmp debian/tmp/DEBIAN
+	install -d debian/tmp/usr/doc/$(package)
+	install -d debian/tmp/usr/bin
+	install -d debian/tmp/usr/man/man1
+	install -o root -g root -m 755 unzip unzipsfx funzip debian/tmp/usr/bin
+	install -o root -g root -m 644 unix/*.1 debian/tmp/usr/man/man1
+	gzip -9 debian/tmp/usr/man/man1/*
+	cp debian/copyright debian/tmp/usr/doc/$(package)/
+	cp debian/changelog debian/tmp/usr/doc/$(package)/changelog.Debian
+	cp History.512 debian/tmp/usr/doc/$(package)/changelog
+	gzip -9 debian/tmp/usr/doc/$(package)/changelog*
+	dpkg-shlibdeps unzip
+	dpkg-gencontrol
+	chown -R root.root debian/tmp
+# Set the permissions as they should be.
+	chmod -R g-ws debian/tmp
+	chmod -R a+r debian/tmp
+	chmod -R u+w debian/tmp
+	find debian/tmp -perm +100 -print | xargs chmod 755
+	dpkg --build debian/tmp ..
+
+define checkdir
+	test -f $(package).c -a -f debian/rules
+endef
+
+binary: binary-indep binary-arch
+
+source diff:
+	@echo >&2 'source and diff are obsolete - use dpkg-source -b'; false
+
+checkroot:
+	$(checkdir)
+	test root = "`whoami`"
+
+.PHONY: binary binary-arch binary-indep clean checkroot

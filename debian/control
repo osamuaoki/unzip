@@ -1,0 +1,15 @@
+Source: unzip
+Section: misc
+Priority: extra
+Maintainer: Stuart Lamble <lamble@yoyo.cc.monash.edu.au>
+Standards-Version: 2.1.1.0
+
+Package: unzip
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: De-archiver for .zip files
+ InfoZIP's unzip program, packaged for Debian GNU/Linux. With the exception
+ of multi-volume archives (ie, .ZIP files that are split across several
+ disks using PKZIP's /& option), this can handle any file produced either
+ by PKZIP, or the corresponding InfoZIP zip program.
+Suggests: zip

@@ -1,0 +1,32 @@
+unzip (5.12-15) unstable; urgency=low
+
+  * received email from the upstream maintainers: unzip can now go into
+    the distribution proper. Yippee! :-)
+  * added the email in question to the copyright file.
+
+ -- Stuart Lamble <lamble@yoyo.cc.monash.edu.au>  Sat, 19 Oct 1996 18:34:21 +1000
+
+unzip (5.12-14) non-free; urgency=low
+
+  * moved to the 2.1.1.0 source format
+  * fixed a typo in the Maintainer field (missing the ">". Oops.)
+
+ -- Stuart Lamble <lamble@yoyo.cc.monash.edu.au>  Sun, 1 Sep 1996 07:36:16 +1000
+
+unzip (5.12-13) non-free; urgency=low
+
+  * new maintainer
+  * mods to make the "binary" rule portable to different platforms
+  * uses dpkg-name rather than manual moving
+
+ -- Stuart Lamble <lamble@yoyo.cc.monash.edu.au>  Tue, 30 Jul 1996 00:00:00 +0000
+
+unzip (5.12-12) non-free; urgency=low
+
+  * initial release (used 2 to avoid confusion with old unzip)
+
+ -- Carl Streeter <streeter@cae.wisc.edu>  Tue, 5 Sep 1995 00:00:00 +0000
+
+Local variables:
+mode: debian-changelog
+End:
