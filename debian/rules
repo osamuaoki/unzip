@@ -1,18 +1,17 @@
 #!/usr/bin/make -f
-#
-# Last updated: Sun Sep  1 18:00:42 EST 1996 by sjlam.
 
-package=unzip
+package = unzip
+dtudp = debian/tmp/usr/doc/$(package)
 
 build: 
 	$(checkdir)
-	make -f unix/Makefile CC="gcc" CFLAGS="-O2" LDFLAGS="-s" linux
+	make -f unix/Makefile CF="-O2 -I." LDFLAGS="-s" unzips
 	touch build
 
 clean:
 	$(checkdir)
 	-rm -f build
-	-make clean
+	-make -f unix/Makefile clean
 	-rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
 binary-indep: checkroot build
@@ -21,25 +20,20 @@ binary-indep: checkroot build
 binary-arch: checkroot build
 	$(checkdir)
 	-rm -rf debian/tmp
-	install -d debian/tmp debian/tmp/DEBIAN
-	install -d debian/tmp/usr/doc/$(package)
-	install -d debian/tmp/usr/bin
-	install -d debian/tmp/usr/man/man1
-	install -o root -g root -m 755 unzip unzipsfx funzip debian/tmp/usr/bin
-	install -o root -g root -m 644 unix/*.1 debian/tmp/usr/man/man1
+	install -d debian/tmp/DEBIAN
+	cd debian/tmp && install -d usr/doc/unzip usr/bin usr/man/man1
+	make -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
 	gzip -9 debian/tmp/usr/man/man1/*
-	cp debian/copyright debian/tmp/usr/doc/$(package)/
-	cp debian/changelog debian/tmp/usr/doc/$(package)/changelog.Debian
-	cp History.512 debian/tmp/usr/doc/$(package)/changelog
-	gzip -9 debian/tmp/usr/doc/$(package)/changelog*
+	cp debian/copyright $(dtudp)
+	cp debian/changelog $(dtudp)/changelog.Debian
+	cp -p History.520 BUGS ToDo $(dtudp)
+	cd $(dtudp) && gzip -9 changelog.Debian History.520
+	cd $(dtudp) && ln -s History.520.gz changelog.gz
 	dpkg-shlibdeps unzip
 	dpkg-gencontrol
 	chown -R root.root debian/tmp
-# Set the permissions as they should be.
-	chmod -R g-ws debian/tmp
-	chmod -R a+r debian/tmp
-	chmod -R u+w debian/tmp
-	find debian/tmp -perm +100 -print | xargs chmod 755
+	# Set the permissions as they should be - just to make sure.
+	chmod -R g-ws,a+rX,u+w,o-w debian/tmp
 	dpkg --build debian/tmp ..
 
 define checkdir
@@ -47,9 +41,6 @@ define checkdir
 endef
 
 binary: binary-indep binary-arch
-
-source diff:
-	@echo >&2 'source and diff are obsolete - use dpkg-source -b'; false
 
 checkroot:
 	$(checkdir)
