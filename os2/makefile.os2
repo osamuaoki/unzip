@@ -1,4 +1,4 @@
-# Makefile for UnZip, UnZipSFX and fUnZip                     10 November 2001
+# Makefile for UnZip, UnZipSFX and fUnZip                     17 February 2002
 #
 #  supported compilers:
 #  - Microsoft C, version 6.00 or higher, for use under OS/2 1.x (16-bit)
@@ -81,6 +81,7 @@ msc:
 	CRC32="crc_i86" \
 	CRC32F="crc_i86" \
 	CRC32X="crc_i86" \
+	OBJF2="os2f.obj" \
 	DEF="os2\unzip.def"
 
 # MS C 6.00 for OS/2, debug version
@@ -99,6 +100,7 @@ mscdebug:
 	CRC32="crc_i86" \
 	CRC32F="crc_i86" \
 	CRC32X="crc_i86" \
+	OBJF2="os2f.obj" \
 	DEF="os2\unzip.def"
 
 # cross-compilation for MS-DOS with MS C 6.00 (same comment as above...formerly;
@@ -120,6 +122,7 @@ mscdos:
 	CRC32X="crc_i86" \
 	OBJU2="msdos.obj" \
 	OBJX2="msdos_.obj" \
+	OBJF2="msdosf.obj" \
 	OSDEP_H="msdos/doscfg.h"
 
 # IBM C Set, statically linked runtime
@@ -274,6 +277,7 @@ watcom16:
 	CRC32="crc_i86" \
 	CRC32F="crc_i86" \
 	CRC32X="crc_i86" \
+	OBJF2="os2f.obj" \
 	DIRSEP="\\" \
 	AS_DIRSEP="\\"
 
@@ -336,6 +340,7 @@ watcom16dos:
 	OBJ=".obj" \
 	OBJU2="msdos.obj" \
 	OBJX2="msdos_.obj" \
+	OBJF2="msdosf.obj" \
 	OSDEP_H="msdos/doscfg.h" \
 	DIRSEP="\\" \
 	AS_DIRSEP="\\"
@@ -353,11 +358,12 @@ watcomwin32:
 	LDFLAGS2="" \
 	OUT="-Fo" \
 	OBJ=".obj" \
-	OBJU2="win32.obj nt.obj" \
-	OBJX2="win32_.obj nt_.obj" \
 	CRC32="crc_i386" \
 	CRC32F="crc_i386" \
 	CRC32X="crc_i386" \
+	OBJU2="win32.obj nt.obj" \
+	OBJX2="win32_.obj nt_.obj" \
+	OBJF2="win32f.obj" \
 	DEF="" \
 	DIRSEP="\\" \
 	AS_DIRSEP="\\"
@@ -575,6 +581,9 @@ msdos$(OBJ):	msdos/msdos.c $(UNZIP_H) unzvers.h		# DOS only
 msdos_$(OBJ):	msdos/msdos.c $(UNZIP_H)			# DOS unzipsfx
 	$(CC) -c $(CFLAGS) -DSFX $(OUT)$@ msdos$(DIRSEP)msdos.c
 
+msdosf$(OBJ):	msdos/msdos.c $(UNZIP_H)			# DOS funzip
+	$(CC) -c $(CFLAGS) -DFUNZII $(OUT)$@ msdos$(DIRSEP)msdos.c
+
 win32$(OBJ):	win32/win32.c $(UNZIP_H) win32/nt.h unzvers.h	# Win32 only
 	$(CC) -c $(CFLAGS) win32$(DIRSEP)win32.c
 
@@ -595,6 +604,9 @@ os2$(OBJ):	os2/os2.c $(UNZIP_H) unzvers.h			# OS/2 only
 
 os2_$(OBJ):	os2/os2.c $(UNZIP_H)				# OS/2 unzipsfx
 	$(CC) -c $(CFLAGS) -DSFX $(OUT)$@ os2$(DIRSEP)os2.c
+
+os2f$(OBJ):	os2/os2.c $(UNZIP_H)				# OS/2 funzip
+	$(CC) -c $(CFLAGS) -DFUNZIP $(OUT)$@ os2$(DIRSEP)os2.c
 
 os2acl$(OBJ):	os2/os2acl.c $(UNZIP_H) unzvers.h		# OS/2 only
 	$(CC) -c $(CFLAGS) $(DLLFLAG) os2$(DIRSEP)os2acl.c

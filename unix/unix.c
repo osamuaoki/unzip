@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 1990-2002 Info-ZIP.  All rights reserved.
+  Copyright (c) 1990-2004 Info-ZIP.  All rights reserved.
 
   See the accompanying file LICENSE, version 2000-Apr-09 or later
   (the contents of which are also included in unzip.h) for terms of use.
@@ -19,6 +19,7 @@
              checkdir()
              mkdir()
              close_outfile()
+             defer_dir_attribs()
              set_direc_attribs()
              stamp_file()
              version()
@@ -45,11 +46,10 @@
 #  endif
 #endif
 
-/* GRR:  may need to uncomment this: */
-#if 0
-#if defined(_POSIX_VERSION)
-#  define DIRENT
-#endif
+#ifdef _POSIX_VERSION
+#  ifndef DIRENT
+#    define DIRENT
+#  endif
 #endif
 
 #ifdef DIRENT
@@ -70,6 +70,22 @@
 #    define dirent direct
 #  endif
 #endif /* ?DIRENT */
+
+#ifdef SET_DIR_ATTRIB
+typedef struct uxdirattr {      /* struct for holding unix style directory */
+    struct uxdirattr *next;     /*  info until can be sorted and set at end */
+    char *fn;                   /* filename of directory */
+    union {
+        iztimes t3;             /* mtime, atime, ctime */
+        ztimbuf t2;             /* modtime, actime */
+    } u;
+    unsigned perms;             /* same as min_info.file_attr */
+    int have_uidgid;            /* flag */
+    ush uidgid[2];
+    char fnbuf[1];              /* buffer stub for directory name */
+} uxdirattr;
+#define UxAtt(d)  ((uxdirattr *)d)    /* typecast shortcut */
+#endif /* SET_DIR_ATTRIB */
 
 #ifdef ACORN_FTYPE_NFS
 /* Acorn bits for NFS filetyping */
@@ -170,8 +186,7 @@ char *do_wild(__G__ wildspec)
         G.notfirstcall = TRUE;
 
         if (!iswild(wildspec)) {
-            strncpy(G.matchname, wildspec, FILNAMSIZ);
-            G.matchname[FILNAMSIZ-1] = '\0';
+            strcpy(G.matchname, wildspec);
             G.have_dirname = FALSE;
             G.wild_dir = NULL;
             return G.matchname;
@@ -189,8 +204,7 @@ char *do_wild(__G__ wildspec)
             if ((G.dirname = (char *)malloc(G.dirnamelen+1)) == (char *)NULL) {
                 Info(slide, 0x201, ((char *)slide,
                   "warning:  cannot allocate wildcard buffers\n"));
-                strncpy(G.matchname, wildspec, FILNAMSIZ);
-                G.matchname[FILNAMSIZ-1] = '\0';
+                strcpy(G.matchname, wildspec);
                 return G.matchname; /* but maybe filespec was not a wildcard */
             }
             strncpy(G.dirname, wildspec, G.dirnamelen);
@@ -226,8 +240,7 @@ char *do_wild(__G__ wildspec)
 
         /* return the raw wildspec in case that works (e.g., directory not
          * searchable, but filespec was not wild and file is readable) */
-        strncpy(G.matchname, wildspec, FILNAMSIZ);
-        G.matchname[FILNAMSIZ-1] = '\0';
+        strcpy(G.matchname, wildspec);
         return G.matchname;
     }
 
@@ -424,17 +437,13 @@ int mapname(__G__ renamed)
  */
 {
     char pathcomp[FILNAMSIZ];      /* path-component buffer */
-    char *pp, *cp=(char *)NULL,    /* character pointers */
-         *dp=(char *)NULL;
+    char *pp, *cp=(char *)NULL;    /* character pointers */
     char *lastsemi=(char *)NULL;   /* pointer to last semi-colon in pathcomp */
 #ifdef ACORN_FTYPE_NFS
     char *lastcomma=(char *)NULL;  /* pointer to last comma in pathcomp */
     RO_extra_block *ef_spark;      /* pointer Acorn FTYPE ef block */
 #endif
-    int quote = FALSE;             /* flags */
     int killed_ddot = FALSE;       /* is set when skipping "../" pathcomp */
-    int killed_qslash = FALSE;     /* is set when skipping "^V/" pathcomp */
-    int snarf_ddot = FALSE;	   /* Is set while scanning for "../" */
     int error = MPN_OK;
     register unsigned workch;      /* hold the character being tested */
 
@@ -472,77 +481,38 @@ int mapname(__G__ renamed)
 
     while ((workch = (uch)*cp++) != 0) {
 
-        if (quote) {                 /* if character quoted, */
-	    if (pp == pathcomp) {
-		quote = FALSE;
-		if (workch == '.')
-		    /* Oh no you don't... */
-	   	    goto ddot_hack;
-	        if (workch == '/') {
-		    /* We *never* allow quote-slash at the beginning */
-		    killed_qslash = TRUE;
-		    continue;
-		}
-	    }
-		
-            *pp++ = (char)workch;    /*  include it literally */
-            quote = FALSE;
-        } else
-            switch (workch) {
+        switch (workch) {
             case '/':             /* can assume -j flag not given */
                 *pp = '\0';
-                if (((error = checkdir(__G__ pathcomp, APPEND_DIR)) & MPN_MASK)
-                     > MPN_INF_TRUNC)
+                if (strcmp(pathcomp, ".") == 0) {
+                    /* don't bother appending "./" to the path */
+                    *pathcomp = '\0';
+                } else if (!uO.ddotflag && strcmp(pathcomp, "..") == 0) {
+                    /* "../" dir traversal detected, skip over it */
+                    *pathcomp = '\0';
+                    killed_ddot = TRUE;     /* set "show message" flag */
+                }
+                /* when path component is not empty, append it now */
+                if (*pathcomp != '\0' &&
+                    ((error = checkdir(__G__ pathcomp, APPEND_DIR))
+                     & MPN_MASK) > MPN_INF_TRUNC)
                     return error;
                 pp = pathcomp;    /* reset conversion buffer for next piece */
-                lastsemi = (char *)NULL; /* leave directory semi-colons alone */
+                lastsemi = (char *)NULL; /* leave direct. semi-colons alone */
                 break;
 
-            case '.':
-                if (pp == pathcomp) {
-ddot_hack:
-		    /* nothing appended yet... */
-                    if (*cp == '/') {   /* don't bother appending "./" to */
-                        ++cp;           /*  the path: skip behind the '/' */
-                        break;
-                    } else if (!uO.ddotflag) {
-
-			/*
-			 * SECURITY: Skip past control characters if the user
-			 * didn't OK use of absolute pathnames. lhh - this is
-			 * a very quick, ugly, inefficient fix; it traverses
-			 * the WHOLE path, eating up these as it comes to it.
-			 */
-			dp = cp;
-			do {
-			    workch = (uch)(*dp);
-			    if (workch == '/' && snarf_ddot) {
-                                /* "../" dir traversal detected */
-                                cp = dp + 1;      /* skip past the '/' */
-                                killed_ddot = TRUE; /* set "show msg" flag */
-                                break;
-                            } else if (workch == '.' && !snarf_ddot) {
-				snarf_ddot = TRUE;
-                	    } else if (isprint(workch) ||
-				       ((workch > 127) && (workch <= 254))) {
-				/*
-				 * Since we found a printable, non-ctrl char,
-				 * we can stop looking for '../', the amount
-				 * in ../!
-				 */
-			        break;
-			    }
-
-			    dp++;
-                        } while (*dp != 0);
-
-			if (killed_ddot)
-			    break;
-                    }
-                }
-                *pp++ = '.';
+#ifdef __CYGWIN__   /* Cygwin runs on Win32, apply FAT/NTFS filename rules */
+            case ':':         /* drive spec not stored, so no colon allowed */
+            case '\\':        /* '\\' may come as normal filename char (not */
+            case '<':         /*  dir sep char!) from unix-like file system */
+            case '>':         /* no redirection symbols allowed either */
+            case '|':         /* no pipe signs allowed */
+            case '"':         /* no double quotes allowed */
+            case '?':         /* no wildcards allowed */
+            case '*':
+                *pp++ = '_';  /* these rules apply equally to FAT and NTFS */
                 break;
-
+#endif
             case ';':             /* VMS version (or DEC-20 attrib?) */
                 lastsemi = pp;
                 *pp++ = ';';      /* keep for now; remove VMS ";##" */
@@ -555,10 +525,6 @@ ddot_hack:
                 break;            /*  later, if requested */
 #endif
 
-            case '\026':          /* control-V quote for special chars */
-                quote = TRUE;     /* set flag for next character */
-                break;
-
 #ifdef MTS
             case ' ':             /* change spaces to underscore under */
                 *pp++ = '_';      /*  MTS; leave as spaces under Unix */
@@ -569,7 +535,7 @@ ddot_hack:
                 /* allow European characters in filenames: */
                 if (isprint(workch) || (128 <= workch && workch <= 254))
                     *pp++ = (char)workch;
-            } /* end switch */
+        } /* end switch */
 
     } /* end while loop */
 
@@ -577,16 +543,6 @@ ddot_hack:
     if (killed_ddot && QCOND2) {
         Info(slide, 0, ((char *)slide,
           "warning:  skipped \"../\" path component(s) in %s\n",
-          FnFilter1(G.filename)));
-        if (!(error & ~MPN_MASK))
-            error = (error & MPN_MASK) | PK_WARN;
-    }
-
-    /* Show warning when stripping insecure quoted-slash at beginning of
-       path components */
-    if (killed_qslash && QCOND2) {
-        Info(slide, 0, ((char *)slide,
-          "warning:  skipped root directory component(s) in %s\n",
           FnFilter1(G.filename)));
         if (!(error & ~MPN_MASK))
             error = (error & MPN_MASK) | PK_WARN;
@@ -975,6 +931,60 @@ int mkdir(path, mode)
 
 
 
+#if (!defined(MTS) || defined(SET_DIR_ATTRIB))
+static int get_extattribs OF((__GPRO__ iztimes *pzt, ush z_uidgid[2]));
+
+static int get_extattribs(__G__ pzt, z_uidgid)
+    __GDEF
+    iztimes *pzt;
+    ush z_uidgid[2];
+{
+/*---------------------------------------------------------------------------
+    Convert from MSDOS-format local time and date to Unix-format 32-bit GMT
+    time:  adjust base year from 1980 to 1970, do usual conversions from
+    yy/mm/dd hh:mm:ss to elapsed seconds, and account for timezone and day-
+    light savings time differences.  If we have a Unix extra field, however,
+    we're laughing:  both mtime and atime are ours.  On the other hand, we
+    then have to check for restoration of UID/GID.
+  ---------------------------------------------------------------------------*/
+    int have_uidgid_flg;
+    unsigned eb_izux_flg;
+
+    eb_izux_flg = (G.extra_field ? ef_scan_for_izux(G.extra_field,
+                   G.lrec.extra_field_length, 0, G.lrec.last_mod_dos_datetime,
+#ifdef IZ_CHECK_TZ
+                   (G.tz_is_valid ? pzt : NULL),
+#else
+                   pzt,
+#endif
+                   z_uidgid) : 0);
+    if (eb_izux_flg & EB_UT_FL_MTIME) {
+        TTrace((stderr, "\nget_extattribs:  Unix e.f. modif. time = %ld\n",
+          pzt->mtime));
+    } else {
+        pzt->mtime = dos_to_unix_time(G.lrec.last_mod_dos_datetime);
+    }
+    if (eb_izux_flg & EB_UT_FL_ATIME) {
+        TTrace((stderr, "get_extattribs:  Unix e.f. access time = %ld\n",
+          pzt->atime));
+    } else {
+        pzt->atime = pzt->mtime;
+        TTrace((stderr, "\nget_extattribs:  modification/access times = %ld\n",
+          pzt->mtime));
+    }
+
+    /* if -X option was specified and we have UID/GID info, restore it */
+    have_uidgid_flg =
+#ifdef RESTORE_UIDGID
+            (uO.X_flag && (eb_izux_flg & EB_UX2_VALID));
+#else
+            0;
+#endif
+    return have_uidgid_flg;
+}
+#endif /* !MTS || SET_DIR_ATTRIB */
+
+
 
 #ifndef MTS
 
@@ -985,43 +995,75 @@ int mkdir(path, mode)
 void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     __GDEF
 {
-    iztimes zt;
+    union {
+        iztimes t3;             /* mtime, atime, ctime */
+        ztimbuf t2;             /* modtime, actime */
+    } zt;
     ush z_uidgid[2];
-    unsigned eb_izux_flg;
+    int have_uidgid_flg;
+
+    fclose(G.outfile);
 
 /*---------------------------------------------------------------------------
-    If symbolic links are supported, allocate a storage area, put the uncom-
-    pressed "data" in it, and create the link.  Since we know it's a symbolic
-    link to start with, we shouldn't have to worry about overflowing unsigned
-    ints with unsigned longs.
+    If symbolic links are supported, allocate storage for a symlink control
+    structure, put the uncompressed "data" and other required info in it, and
+    add the structure to the "deferred symlinks" chain.  Since we know it's a
+    symbolic link to start with, we shouldn't have to worry about overflowing
+    unsigned ints with unsigned longs.
   ---------------------------------------------------------------------------*/
 
 #ifdef SYMLINKS
     if (G.symlnk) {
         unsigned ucsize = (unsigned)G.lrec.ucsize;
-        char *linktarget = (char *)malloc((unsigned)G.lrec.ucsize+1);
+        extent slnk_entrysize = sizeof(slinkentry) + ucsize +
+                                strlen(G.filename);
+        slinkentry *slnk_entry;
 
-        /* move back to the start of the file to re-read the "link data" */
-        rewind(G.outfile);
-        if (!linktarget || fread(linktarget, 1, ucsize, G.outfile) !=
-                           (int)ucsize)
+        if ((unsigned)slnk_entrysize < ucsize) {
+            Info(slide, 0x201, ((char *)slide,
+              "warning:  symbolic link (%s) failed: mem alloc overflow\n",
+              FnFilter1(G.filename)));
+            return;
+        }
+
+        if ((slnk_entry = (slinkentry *)malloc(slnk_entrysize)) == NULL) {
+            Info(slide, 0x201, ((char *)slide,
+              "warning:  symbolic link (%s) failed: no mem\n",
+              FnFilter1(G.filename)));
+            return;
+        }
+        slnk_entry->next = NULL;
+        slnk_entry->targetlen = ucsize;
+        slnk_entry->attriblen = 0;      /* don't set attributes for symlinks */
+        slnk_entry->target = slnk_entry->buf;
+        slnk_entry->fname = slnk_entry->target + ucsize + 1;
+        strcpy(slnk_entry->fname, G.filename);
+
+        /* reopen the "link data" file for reading */
+        G.outfile = fopen(G.filename, FOPR);
+
+        if (!G.outfile ||
+            fread(slnk_entry->target, 1, ucsize, G.outfile) != (int)ucsize)
         {
             Info(slide, 0x201, ((char *)slide,
-              "warning:  symbolic link (%s) failed\n", FnFilter1(G.filename)));
-            if (linktarget)
-                free(linktarget);
+              "warning:  symbolic link (%s) failed\n",
+              FnFilter1(G.filename)));
+            free(slnk_entry);
             fclose(G.outfile);
             return;
         }
-        fclose(G.outfile);                  /* close "data" file for good... */
-        unlink(G.filename);                 /* ...and delete it */
-        linktarget[ucsize] = '\0';
+        fclose(G.outfile);                  /* close "link" file for good... */
+        slnk_entry->target[ucsize] = '\0';
         if (QCOND2)
-            Info(slide, 0, ((char *)slide, "-> %s ", FnFilter1(linktarget)));
-        if (symlink(linktarget, G.filename))  /* create the real link */
-            perror("symlink error");
-        free(linktarget);
-        return;                             /* can't set time on symlinks */
+            Info(slide, 0, ((char *)slide, "-> %s ",
+              FnFilter1(slnk_entry->target)));
+        /* add this symlink record to the list of deferred symlinks */
+        if (G.slink_last != NULL)
+            G.slink_last->next = slnk_entry;
+        else
+            G.slink_head = slnk_entry;
+        G.slink_last = slnk_entry;
+        return;
     }
 #endif /* SYMLINKS */
 
@@ -1033,42 +1075,12 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     }
 #endif
 
-/*---------------------------------------------------------------------------
-    Convert from MSDOS-format local time and date to Unix-format 32-bit GMT
-    time:  adjust base year from 1980 to 1970, do usual conversions from
-    yy/mm/dd hh:mm:ss to elapsed seconds, and account for timezone and day-
-    light savings time differences.  If we have a Unix extra field, however,
-    we're laughing:  both mtime and atime are ours.  On the other hand, we
-    then have to check for restoration of UID/GID.
-  ---------------------------------------------------------------------------*/
-
-    eb_izux_flg = (G.extra_field ? ef_scan_for_izux(G.extra_field,
-                   G.lrec.extra_field_length, 0, G.lrec.last_mod_dos_datetime,
-#ifdef IZ_CHECK_TZ
-                   (G.tz_is_valid ? &zt : NULL),
-#else
-                   &zt,
-#endif
-                   z_uidgid) : 0);
-    if (eb_izux_flg & EB_UT_FL_MTIME) {
-        TTrace((stderr, "\nclose_outfile:  Unix e.f. modif. time = %ld\n",
-          zt.mtime));
-    } else {
-        zt.mtime = dos_to_unix_time(G.lrec.last_mod_dos_datetime);
-    }
-    if (eb_izux_flg & EB_UT_FL_ATIME) {
-        TTrace((stderr, "close_outfile:  Unix e.f. access time = %ld\n",
-          zt.atime));
-    } else {
-        zt.atime = zt.mtime;
-        TTrace((stderr, "\nclose_outfile:  modification/access times = %ld\n",
-          zt.mtime));
-    }
+    have_uidgid_flg = get_extattribs(__G__ &(zt.t3), z_uidgid);
 
     /* if -X option was specified and we have UID/GID info, restore it */
-    if (uO.X_flag && eb_izux_flg & EB_UX2_VALID) {
+    if (have_uidgid_flg) {
         TTrace((stderr, "close_outfile:  restoring Unix UID/GID info\n"));
-        if (fchown(fileno(G.outfile), (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
+        if (chown(G.filename, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
         {
             if (uO.qflag)
                 Info(slide, 0x201, ((char *)slide,
@@ -1082,7 +1094,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     }
 
     /* set the file's access and modification times */
-    if (utime(G.filename, (ztimbuf *)&zt)) {
+    if (utime(G.filename, &(zt.t2))) {
 #ifdef AOS_VS
         if (uO.qflag)
             Info(slide, 0x201, ((char *)slide, "... cannot set time for %s\n",
@@ -1105,17 +1117,13 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
   ---------------------------------------------------------------------------*/
 
 #ifndef NO_CHMOD
-    if (fchmod(fileno(G.outfile), 0xffff & G.pInfo->file_attr))
+    if (chmod(G.filename, 0xffff & G.pInfo->file_attr))
         perror("chmod (file attributes) error");
 #endif
-
-    fclose(G.outfile);
 
 } /* end function close_outfile() */
 
 #endif /* !MTS */
-
-
 
 
 #ifdef SET_DIR_ATTRIB
@@ -1130,29 +1138,52 @@ static ZCONST char Far DirlistUtimeFailed[] =
 #  endif
 
 
+int defer_dir_attribs(__G__ pd)
+    __GDEF
+    direntry **pd;
+{
+    uxdirattr *d_entry;
+
+    d_entry = (uxdirattr *)malloc(sizeof(uxdirattr) + strlen(G.filename));
+    *pd = (direntry *)d_entry;
+    if (d_entry == (uxdirattr *)NULL) {
+        return PK_MEM;
+    }
+    d_entry->fn = d_entry->fnbuf;
+    strcpy(d_entry->fn, G.filename);
+
+    d_entry->perms = G.pInfo->file_attr;
+
+    d_entry->have_uidgid = get_extattribs(__G__ &(d_entry->u.t3),
+                                          d_entry->uidgid);
+    return PK_OK;
+} /* end function defer_dir_attribs() */
+
+
 int set_direc_attribs(__G__ d)
     __GDEF
-    dirtime *d;
+    direntry *d;
 {
     int errval = PK_OK;
 
-    if (d->have_uidgid &&
-        chown(d->fn, (uid_t)d->uidgid[0], (gid_t)d->uidgid[1]))
+    if (UxAtt(d)->have_uidgid &&
+        chown(UxAtt(d)->fn, (uid_t)UxAtt(d)->uidgid[0],
+              (gid_t)UxAtt(d)->uidgid[1]))
     {
         Info(slide, 0x201, ((char *)slide,
           LoadFarString(DirlistUidGidFailed),
-          d->uidgid[0], d->uidgid[1], FnFilter1(d->fn)));
+          UxAtt(d)->uidgid[0], UxAtt(d)->uidgid[1], FnFilter1(d->fn)));
         if (!errval)
             errval = PK_WARN;
     }
-    if (utime(d->fn, &d->u.t2)) {
+    if (utime(d->fn, &UxAtt(d)->u.t2)) {
         Info(slide, 0x201, ((char *)slide,
           LoadFarString(DirlistUtimeFailed), FnFilter1(d->fn)));
         if (!errval)
             errval = PK_WARN;
     }
 #ifndef NO_CHMOD
-    if (chmod(d->fn, 0xffff & d->perms)) {
+    if (chmod(d->fn, 0xffff & UxAtt(d)->perms)) {
         Info(slide, 0x201, ((char *)slide,
           LoadFarString(DirlistChmodFailed), FnFilter1(d->fn)));
         /* perror("chmod (file attributes) error"); */
@@ -1161,7 +1192,7 @@ int set_direc_attribs(__G__ d)
     }
 #endif /* !NO_CHMOD */
     return errval;
-} /* end function set_directory_attributes() */
+} /* end function set_direc_attribs() */
 
 #endif /* SET_DIR_ATTRIB */
 
@@ -1345,6 +1376,15 @@ void version(__G)
 #ifdef __386BSD__
       (BSD4_4 == 1)? " (386BSD, post-4.4 release)" : " (386BSD)",
 #else
+#ifdef __CYGWIN__
+      " (Cygwin)",
+#else
+#if defined(i686) || defined(__i686) || defined(__i686__)
+      " (Intel 686)",
+#else
+#if defined(i586) || defined(__i586) || defined(__i586__)
+      " (Intel 586)",
+#else
 #if defined(i486) || defined(__i486) || defined(__i486__)
       " (Intel 486)",
 #else
@@ -1394,6 +1434,9 @@ void version(__G)
 #endif /* Pyramid */
 #endif /* 386 */
 #endif /* 486 */
+#endif /* 586 */
+#endif /* 686 */
+#endif /* Cygwin */
 #endif /* 386BSD */
 #endif /* BSDI BSD/386 */
 #endif /* NetBSD */

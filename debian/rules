@@ -2,14 +2,15 @@
 
 package = unzip
 docdir = debian/tmp/usr/share/doc/$(package)
-history = History.550
+history = History.551
 
 CC = gcc
-CFLAGS = -O2 -Wall
+CFLAGS = -g -Wall
+DEFINES = -DACORN_FTYPE_NFS -DUSE_UNSHRINK
 INSTALL_PROGRAM = install
 
-ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
-  CFLAGS += -g
+ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+  CFLAGS += -O2
 endif
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
   INSTALL_PROGRAM += -s
@@ -18,21 +19,21 @@ endif
 build:
 	$(checkdir)
 	$(MAKE) -f unix/Makefile LF2="" \
-		CC="$(CC)" CF="$(CFLAGS) -I. -DACORN_FTYPE_NFS" unzips
+		CC="$(CC)" CF="$(CFLAGS) -I. $(DEFINES)" unzips
 	touch build
 
 clean:
 	$(checkdir)
-	-rm -f build
+	rm -f build
 	-$(MAKE) -f unix/Makefile clean
-	-rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
+	rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
 binary-indep: checkroot build
 	$(checkdir)
 
 binary-arch: checkroot build
 	$(checkdir)
-	-rm -rf debian/tmp
+	rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
 	cd debian/tmp && install -d usr/bin usr/man/man1
 	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr \
@@ -45,10 +46,10 @@ binary-arch: checkroot build
 	gzip -r9 debian/tmp/usr/man
 	cd debian/tmp && mv usr/man usr/share
 	dpkg-shlibdeps unzip
-	sh debian/mk-symlinks $(package)
 	dpkg-gencontrol -isp
-	cd debian/tmp && md5sum `find * -type f ! -regex "DEBIAN/.*"` >DEBIAN/md5sums
-	chown -R root.root debian/tmp
+	cd debian/tmp && \
+		md5sum `find * -type f ! -regex "DEBIAN/.*"` > DEBIAN/md5sums
+	chown -R root:root debian/tmp
 	chmod -R go=rX debian/tmp
 	dpkg --build debian/tmp ..
 

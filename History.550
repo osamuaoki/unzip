@@ -255,6 +255,14 @@ Bugs fixed:
  - win32/w32cfg.h: Watcom C requires IZTZ_DEFINESTDGLOBALS setting when using
     the timehandling replacement code from timezone.c [Paul Kienitz]
  - README, unzvers.h: removed BETA notes for public release [SPC]
+ - os2/os2.c, SetFileSize(): 16-bit OS/2 needs fake code here [Kai-Uwe Rommel]
+ - unzpriv.h: added ZCONST to varmessage() buf arg [Kai-Uwe Rommel, SPC]
+ - os2/os2.c: added #ifndef FUNZIP sections to allow inclusion of this module
+    in the object modules list for 16-bit fUnZip targets [SPC]
+ - os2/makefile.os2: fixed 16-bit targets to include os2f.obj resp. msdosf.obj
+    in the fUnZip object modules list [SPC]
+ - fileio.c, do_string(): added typecasts in CHEAP_SFX_AUTORUN option code to
+    remove signed/unsigned mismatch warnings [Hunter Goatley]
 
 ==================
 

@@ -17,7 +17,7 @@
 
 
 /* And'ing with mask_bits[n] masks the lower n bits */
-ZCONST ush near mask_bits[] = {
+ZCONST unsigned near mask_bits[17] = {
     0x0000,
     0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff,
     0x01ff, 0x03ff, 0x07ff, 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff
@@ -34,9 +34,9 @@ ZCONST char Far CentSigMsg[] =
   "error:  expected central file header signature not found (file #%lu).\n";
 ZCONST char Far SeekMsg[] =
   "error [%s]:  attempt to seek before beginning of zipfile\n%s";
-ZCONST char Far FilenameNotMatched[] = "caution: filename not matched:  %.512s\n";
+ZCONST char Far FilenameNotMatched[] = "caution: filename not matched:  %s\n";
 ZCONST char Far ExclFilenameNotMatched[] =
-  "caution: excluded filename not matched:  %.512s\n";
+  "caution: excluded filename not matched:  %s\n";
 
 #ifdef VMS
   ZCONST char Far ReportMsg[] = "\

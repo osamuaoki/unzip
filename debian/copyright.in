@@ -4,11 +4,10 @@ portable, zipfile decompression utility.
 This package is currently maintained by Santiago Vila <sanvila@debian.org>
 and built from sources obtained from:
 
-ftp://ftp.info-zip.org/pub/infozip/src/unzip550.tar.gz
+ftp://ftp.info-zip.org/pub/infozip/src/unzip551.tar.gz
 
 The changes were fairly minimal, and consisted solely of adding
-various debian/* files to the distribution, plus several miscellaneous
-fixes as reflected in the Debian changelog.
+various debian/* files to the distribution.
 
 Copyright:
 
