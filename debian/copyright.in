@@ -4,15 +4,10 @@ fast, portable, zipfile decompression utility.
 This package is currently maintained by Santiago Vila <sanvila@ctv.es>
 and built from sources obtained from:
 
-ftp://ftp.cdrom.com/pub/info-zip/src/unzip532.tar.gz
+ftp://ftp.cdrom.com/pub/infozip/src/unzip540.tar.gz
 
 The changes were fairly minimal, and consisted solely of adding
 various debian/* files to the distribution.
-
-In the file `email-from-greg' there is an email from Greg Roelofs,
-providing explicit permission to place zip and unzip into the Debian
-distribution proper, but according to our Social Contract and the latest
-debian-policy, we may not do it.
 
 Copyright:
 

@@ -1,3 +1,12 @@
+unzip (5.40-1) unstable; urgency=low
+
+  * New upstream release.
+  * Removed `email-from-greg'.
+  * Fixed URL location in copyright file.
+  * Enabled -F option, as suggested by James Aylett.
+
+ -- Santiago Vila <sanvila@ctv.es>  Fri, 22 Oct 1999 10:30:49 +0200
+
 unzip (5.32-1) unstable; urgency=low
 
   * New upstream release, using pristine source.

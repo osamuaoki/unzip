@@ -1,8 +1,8 @@
 Source: unzip
-Section: non-free
+Section: non-free/utils
 Priority: optional
 Maintainer: Santiago Vila <sanvila@ctv.es>
-Standards-Version: 2.3.0.1
+Standards-Version: 2.5.0
 
 Package: unzip
 Architecture: any

@@ -1,17 +1,19 @@
 #!/usr/bin/make -f
 
 package = unzip
-dtudp = debian/tmp/usr/doc/$(package)
+docdir = debian/tmp/usr/doc/$(package)
+history = History.540
 
 build:
 	$(checkdir)
-	make -f unix/Makefile CF="-O2 -I." LDFLAGS="-s" unzips
+	$(MAKE) -f unix/Makefile \
+		CC=gcc CF="-g -O2 -Wall -I. -DACORN_FTYPE_NFS" unzips
 	touch build
 
 clean:
 	$(checkdir)
 	-rm -f build
-	-make -f unix/Makefile clean
+	-$(MAKE) -f unix/Makefile clean
 	-rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
 binary-indep: checkroot build
@@ -20,17 +22,17 @@ binary-indep: checkroot build
 binary-arch: checkroot build
 	$(checkdir)
 	-rm -rf debian/tmp
-	install -d debian/tmp/DEBIAN
-	cd debian/tmp && install -d usr/doc/$(package) usr/bin usr/man/man1
-	make -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
-	cat debian/copyright.in COPYING > $(dtudp)/copyright
-	cp debian/changelog $(dtudp)/changelog.Debian
-	cp -p History.* BUGS ToDo debian/email-from-greg $(dtudp)
-	cd $(dtudp) && gzip -9 changelog.Debian History.*
-	ln -s History.532.gz $(dtudp)/changelog.gz
+	install -d debian/tmp/DEBIAN $(docdir)
+	cd debian/tmp && install -d usr/bin usr/man/man1
+	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
+	cat debian/copyright.in COPYING > $(docdir)/copyright
+	cp debian/changelog $(docdir)/changelog.Debian
+	cp -p History.* BUGS ToDo $(docdir)
+	cd $(docdir) && gzip -9 changelog.Debian History.*
+	ln -s $(history).gz $(docdir)/changelog.gz
 	gzip -r9 debian/tmp/usr/man
 	dpkg-shlibdeps unzip
-	dpkg-gencontrol
+	dpkg-gencontrol -isp
 	cd debian/tmp && md5sum `find * -type f ! -regex "DEBIAN/.*"` >DEBIAN/md5sums
 	chown -R root.root debian/tmp
 	chmod -R go=rX debian/tmp
