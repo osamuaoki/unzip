@@ -1,36 +1,8 @@
-unzip (5.52-1sarge5) oldstable-security; urgency=high
+unzip (5.52-2) unstable; urgency=low
 
-  * Apply patch from Tavis Ormandy to address invalid free() calls in
-    the inflate_dynamic() function (CVE-2008-0888).
+  * Fixed typos in manpage (Closes: #301915).
 
- -- Florian Weimer <fw@deneb.enyo.de>  Sun, 16 Mar 2008 11:52:16 +0100
-
-unzip (5.52-1sarge4) stable-security; urgency=medium
-
-  * Fixed CVE-2005-4667 (buffer overflow on insanely long filenames).
-    Backported from unzip-5.52-7.
-
- -- Santiago Vila <sanvila@debian.org>  Thu, 16 Mar 2006 10:43:06 +0100
-
-unzip (5.52-1sarge3) stable-security; urgency=medium
-
-  * Fixed CAN-2005-2475 again. The previous release was horribly broken
-    (unpacking of symlinks didn't work). Fix backported from 5.52-6.
-
- -- Santiago Vila <sanvila@debian.org>  Wed, 21 Dec 2005 19:11:04 +0100
-
-unzip (5.52-1sarge2) stable-security; urgency=low
-
-  * Fixed CAN-2005-2475 as it will be fixed in unzip 5.53.
-  * Changed unzip banner line. This is a modified release.
-
- -- Santiago Vila <sanvila@debian.org>  Thu, 17 Nov 2005 16:49:56 +0100
-
-unzip (5.52-1sarge1) stable-security; urgency=medium
-
-  * Fixed toctou vulnerability, CAN-2005-2475.
-
- -- Santiago Vila <sanvila@debian.org>  Wed,  9 Nov 2005 18:17:46 +0100
+ -- Santiago Vila <sanvila@debian.org>  Sun, 24 Apr 2005 19:27:02 +0200
 
 unzip (5.52-1) unstable; urgency=low
 

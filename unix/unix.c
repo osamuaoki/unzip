@@ -1042,6 +1042,8 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     ush z_uidgid[2];
     int have_uidgid_flg;
 
+    fclose(G.outfile);
+
 /*---------------------------------------------------------------------------
     If symbolic links are supported, allocate storage for a symlink control
     structure, put the uncompressed "data" and other required info in it, and
@@ -1061,7 +1063,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
             Info(slide, 0x201, ((char *)slide,
               "warning:  symbolic link (%s) failed: mem alloc overflow\n",
               FnFilter1(G.filename)));
-            fclose(G.outfile);
             return;
         }
 
@@ -1069,7 +1070,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
             Info(slide, 0x201, ((char *)slide,
               "warning:  symbolic link (%s) failed: no mem\n",
               FnFilter1(G.filename)));
-            fclose(G.outfile);
             return;
         }
         slnk_entry->next = NULL;
@@ -1079,10 +1079,11 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         slnk_entry->fname = slnk_entry->target + ucsize + 1;
         strcpy(slnk_entry->fname, G.filename);
 
-        /* move back to the start of the file to re-read the "link data" */
-        rewind(G.outfile);
+        /* reopen the "link data" file for reading */
+        G.outfile = fopen(G.filename, FOPR);
 
-        if (fread(slnk_entry->target, 1, ucsize, G.outfile) != (int)ucsize)
+        if (!G.outfile ||
+            fread(slnk_entry->target, 1, ucsize, G.outfile) != (int)ucsize)
         {
             Info(slide, 0x201, ((char *)slide,
               "warning:  symbolic link (%s) failed\n",
@@ -1114,20 +1115,12 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     }
 #endif
 
-#if (defined(NO_FCHOWN) || defined(NO_FCHMOD))
-    fclose(G.outfile);
-#endif
-
     have_uidgid_flg = get_extattribs(__G__ &(zt.t3), z_uidgid);
 
     /* if -X option was specified and we have UID/GID info, restore it */
     if (have_uidgid_flg) {
         TTrace((stderr, "close_outfile:  restoring Unix UID/GID info\n"));
-#if (defined(NO_FCHOWN) || defined(NO_FCHMOD))
         if (chown(G.filename, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
-#else
-        if (fchown(fileno(G.outfile), (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
-#endif
         {
             if (uO.qflag)
                 Info(slide, 0x201, ((char *)slide,
@@ -1139,18 +1132,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
                   z_uidgid[0], z_uidgid[1]));
         }
     }
-
-#if (!defined(NO_FCHOWN) && !defined(NO_FCHMOD))
-/*---------------------------------------------------------------------------
-    Change the file permissions from default ones to those stored in the
-    zipfile.
-  ---------------------------------------------------------------------------*/
-
-    if (fchmod(fileno(G.outfile), filtattr(__G__ G.pInfo->file_attr)))
-        perror("chmod (file attributes) error");
-
-    fclose(G.outfile);
-#endif /* !NO_FCHOWN && !NO_FCHMOD */
 
     /* set the file's access and modification times */
     if (utime(G.filename, &(zt.t2))) {
@@ -1170,7 +1151,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
 #endif /* ?AOS_VS */
     }
 
-#if (defined(NO_FCHOWN) || defined(NO_FCHMOD))
 /*---------------------------------------------------------------------------
     Change the file permissions from default ones to those stored in the
     zipfile.
@@ -1180,7 +1160,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     if (chmod(G.filename, filtattr(__G__ G.pInfo->file_attr)))
         perror("chmod (file attributes) error");
 #endif
-#endif /* NO_FCHOWN || NO_FCHMOD */
 
 } /* end function close_outfile() */
 
@@ -1661,6 +1640,7 @@ static void qlfix(__G__ ef_ptr, ef_len)
 
             if ((long)LG(dlen) > 0)
             {
+                G.outfile = fopen(G.filename,"r+");
                 fseek(G.outfile, -8, SEEK_END);
                 fread(&ntc, 8, 1, G.outfile);
                 if(ntc.id != *(long *)"XTcc")
@@ -1670,6 +1650,7 @@ static void qlfix(__G__ ef_ptr, ef_len)
                     fwrite (&ntc, 8, 1, G.outfile);
                 }
                 Info(slide, 0x201, ((char *)slide, "QData = %d", LG(dlen)));
+                fclose(G.outfile);
             }
             return;     /* finished, cancel further extra field scanning */
           }

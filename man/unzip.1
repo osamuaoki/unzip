@@ -78,7 +78,7 @@ or modified by the operating system.
 .IP [\fB\-x\fP\ \fIxfile(s)\fP]
 An optional list of archive members to be excluded from processing.
 Since wildcard characters normally match (`/') directory separators
-(for exeptions see the option \fb\-W\fp\), this option may be used
+(for exceptions see the option \fb\-W\fp\), this option may be used
 to exclude any files that are in subdirectories.  For
 example, ``\fCunzip foo *.[ch] -x */*\fR'' would extract all C source files
 in the main directory, but none in any subdirectories.  Without the \fB\-x\fP
@@ -176,7 +176,7 @@ most of the competing utilities, \fIunzip\fP removes the 12 additional header
 bytes of encrypted entries from the compressed size numbers.  Therefore,
 compressed size and compression ratio figures are independent of the entry's
 encryption status and show the correct compression performance.  (The complete
-size of the encryped compressed data stream for zipfile entries is reported
+size of the encrypted compressed data stream for zipfile entries is reported
 by the more verbose \fIzipinfo\fP(1L) reports, see the separate manual.)
 When no zipfile is specified (that is, the complete command is simply
 ``\fCunzip \-v\fR''), a diagnostic screen is printed.  In addition to
@@ -397,7 +397,7 @@ includes the directory separator in its matched characters.)  Examples:
 This modified behaviour is equivalent to the pattern matching style
 used by the shells of some of UnZip's supported target OSs (one
 example is Acorn RISC OS).  This option may not be available on systems
-where the Zip archive's interal directory separator character `/' is
+where the Zip archive's internal directory separator character `/' is
 allowed as regular character in native operating system filenames.
 (Currently, UnZip uses the same pattern matching rules for both wildcard
 zipfile specifications and zip entry selection patterns in most ports.
@@ -446,7 +446,7 @@ extraction folder.  This option does not enable writing explicitly to the
 root directory (``/'').  To achieve this, it is necessary to set the
 extraction target folder to root (e.g. \fB\-d / \fP).  However, when the
 \fB\-:\fP option is specified, it is still possible to implicitly write to
-the root directory by specifiying enough ``../'' path components within the
+the root directory by specifying enough ``../'' path components within the
 zip archive.
 Use this option with extreme caution.
 .PD
