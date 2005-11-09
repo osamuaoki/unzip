@@ -1,3 +1,12 @@
+unzip (5.52-4) unstable; urgency=medium
+
+  * Fixed toctou vulnerability (Closes: #321927). Modified unix/unix.c
+    to use fchmod() and fchown() instead of chmod() and chown() to change
+    permissions and ownerships on the files actually created by unzip.
+    Patch from Dan Yefimov. CAN-2005-2475.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed,  9 Nov 2005 18:05:02 +0100
+
 unzip (5.52-3) unstable; urgency=low
 
   * Put manpages in section 1, not 1L.

@@ -1040,9 +1040,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         ztimbuf t2;             /* modtime, actime */
     } zt;
     ush z_uidgid[2];
-    int have_uidgid_flg;
-
-    fclose(G.outfile);
+    int have_uidgid_flg, outfd;
 
 /*---------------------------------------------------------------------------
     If symbolic links are supported, allocate storage for a symlink control
@@ -1080,7 +1078,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         strcpy(slnk_entry->fname, G.filename);
 
         /* reopen the "link data" file for reading */
-        G.outfile = fopen(G.filename, FOPR);
+        G.outfile = freopen(G.filename, FOPR, G.outfile);
 
         if (!G.outfile ||
             fread(slnk_entry->target, 1, ucsize, G.outfile) != (int)ucsize)
@@ -1116,11 +1114,12 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
 #endif
 
     have_uidgid_flg = get_extattribs(__G__ &(zt.t3), z_uidgid);
+    outfd = fileno(G.outfile);
 
     /* if -X option was specified and we have UID/GID info, restore it */
     if (have_uidgid_flg) {
         TTrace((stderr, "close_outfile:  restoring Unix UID/GID info\n"));
-        if (chown(G.filename, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
+        if (fchown(outfd, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
         {
             if (uO.qflag)
                 Info(slide, 0x201, ((char *)slide,
@@ -1157,9 +1156,11 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
   ---------------------------------------------------------------------------*/
 
 #ifndef NO_CHMOD
-    if (chmod(G.filename, filtattr(__G__ G.pInfo->file_attr)))
+    if (fchmod(outfd, filtattr(__G__ G.pInfo->file_attr)))
         perror("chmod (file attributes) error");
 #endif
+
+    fclose(G.outfile);
 
 } /* end function close_outfile() */
 
