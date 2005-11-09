@@ -985,6 +985,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     iztimes zt;
     ush z_uidgid[2];
     unsigned eb_izux_flg;
+    int outfd;
 
 /*---------------------------------------------------------------------------
     If symbolic links are supported, allocate a storage area, put the uncom-
@@ -998,8 +999,7 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
         unsigned ucsize = (unsigned)G.lrec.ucsize;
         char *linktarget = (char *)malloc((unsigned)G.lrec.ucsize+1);
 
-        fclose(G.outfile);                      /* close "data" file... */
-        G.outfile = fopen(G.filename, FOPR);    /* ...and reopen for reading */
+        G.outfile = freopen(G.filename, FOPR, G.outfile);    /* reopen for reading */
         if (!linktarget || fread(linktarget, 1, ucsize, G.outfile) !=
                            (int)ucsize)
         {
@@ -1022,7 +1022,6 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
     }
 #endif /* SYMLINKS */
 
-    fclose(G.outfile);
 #ifdef QLZIP
     if (G.extra_field) {
         static void qlfix OF((__GPRO__ uch *ef_ptr, unsigned ef_len));
@@ -1063,10 +1062,12 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
           zt.mtime));
     }
 
+    outfd = fileno(G.outfile);
+
     /* if -X option was specified and we have UID/GID info, restore it */
     if (uO.X_flag && eb_izux_flg & EB_UX2_VALID) {
         TTrace((stderr, "close_outfile:  restoring Unix UID/GID info\n"));
-        if (chown(G.filename, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
+        if (fchown(outfd, (uid_t)z_uidgid[0], (gid_t)z_uidgid[1]))
         {
             if (uO.qflag)
                 Info(slide, 0x201, ((char *)slide,
@@ -1103,9 +1104,11 @@ void close_outfile(__G)    /* GRR: change to return PK-style warning level */
   ---------------------------------------------------------------------------*/
 
 #ifndef NO_CHMOD
-    if (chmod(G.filename, 0xffff & G.pInfo->file_attr))
+    if (fchmod(outfd, 0xffff & G.pInfo->file_attr))
         perror("chmod (file attributes) error");
 #endif
+
+    fclose(G.outfile);
 
 } /* end function close_outfile() */
 

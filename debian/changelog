@@ -1,3 +1,9 @@
+unzip (5.50-1woody3) oldstable-security; urgency=medium
+
+  * Fixed toctou vulnerability, CAN-2005-2475.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed,  9 Nov 2005 22:43:40 +0100
+
 unzip (5.50-1woody2) stable-security; urgency=high
 
   * Fixed "unzip directory traversal revisited" again (Closes: #206439).
