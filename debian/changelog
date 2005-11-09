@@ -1,3 +1,9 @@
+unzip (5.52-1sarge1) stable-security; urgency=medium
+
+  * Fixed toctou vulnerability, CAN-2005-2475.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed,  9 Nov 2005 18:17:46 +0100
+
 unzip (5.52-1) unstable; urgency=low
 
   * New upstream release.
