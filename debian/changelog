@@ -1,3 +1,13 @@
+unzip (5.52-5) unstable; urgency=low
+
+  * Fixed CAN-2005-2475 the same way it will be fixed in unzip 5.53.
+    Patch extracted from a prerelease provided by upstream.
+  * Changed unzip banner line to reflect the fact that this is
+    a "modified" release. Debian-derived distributions should probably
+    do the same if they deviate from the Debian version.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 17 Nov 2005 16:34:24 +0100
+
 unzip (5.52-4) unstable; urgency=medium
 
   * Fixed toctou vulnerability (Closes: #321927). Modified unix/unix.c
