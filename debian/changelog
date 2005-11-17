@@ -1,3 +1,10 @@
+unzip (5.52-1sarge2) stable-security; urgency=low
+
+  * Fixed CAN-2005-2475 as it will be fixed in unzip 5.53.
+  * Changed unzip banner line. This is a modified release.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 17 Nov 2005 16:49:56 +0100
+
 unzip (5.52-1sarge1) stable-security; urgency=medium
 
   * Fixed toctou vulnerability, CAN-2005-2475.
