@@ -508,8 +508,7 @@ Send bug reports to authors at Zip-Bugs@lists.wku.edu; see README for details.\
 #else /* !VMS */
 #ifdef COPYRIGHT_CLEAN
    static ZCONST char Far UnzipUsageLine1[] = "\
-UnZip %d.%d%d%s of %s, by Info-ZIP.  Maintained by C. Spieler.  Send\n\
-bug reports to the authors at Zip-Bugs@lists.wku.edu; see README for details.\
+UnZip %d.%d%d%s of %s, by Debian. Original by Info-ZIP.\
 \n\n";
 #else
    static ZCONST char Far UnzipUsageLine1[] = "\
