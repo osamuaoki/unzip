@@ -1,3 +1,10 @@
+unzip (5.52-6) unstable; urgency=medium
+
+  * Symlinks should work again (Closes: #343680). Fix provided by
+    Christian Spieler. Thanks to Carl W. Hoffman for the report.
+
+ -- Santiago Vila <sanvila@debian.org>  Tue, 20 Dec 2005 19:18:32 +0100
+
 unzip (5.52-5) unstable; urgency=low
 
   * Fixed CAN-2005-2475 the same way it will be fixed in unzip 5.53.
