@@ -1,3 +1,10 @@
+unzip (5.50-1woody5) oldstable-security; urgency=medium
+
+  * Fixed CAN-2005-2475 again. Unpacking of symlinks was broken.
+    Patch backported from 5.52-6.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 21 Dec 2005 19:54:22 +0100
+
 unzip (5.50-1woody4) oldstable-security; urgency=low
 
   * Fixed CAN-2005-2475 again. Patch backported from 5.52-5.
