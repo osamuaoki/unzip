@@ -1,3 +1,10 @@
+unzip (5.52-1sarge3) stable-security; urgency=medium
+
+  * Fixed CAN-2005-2475 again. The previous release was horribly broken
+    (unpacking of symlinks didn't work). Fix backported from 5.52-6.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 21 Dec 2005 19:11:04 +0100
+
 unzip (5.52-1sarge2) stable-security; urgency=low
 
   * Fixed CAN-2005-2475 as it will be fixed in unzip 5.53.
