@@ -1,3 +1,13 @@
+unzip (5.52-7) unstable; urgency=medium
+
+  * Fixed buffer overflow when insanely long filenames are given on the
+    command line. Patch from Johnny Lee. Changed some format strings so
+    that they use 512 characters at most. The "right" fix will be in 5.53,
+    but this should work well enough for now. Closes: #349794.
+  * This is CVE-2005-4667.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 16 Mar 2006 10:31:20 +0100
+
 unzip (5.52-6) unstable; urgency=medium
 
   * Symlinks should work again (Closes: #343680). Fix provided by
