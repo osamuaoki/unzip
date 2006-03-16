@@ -1,3 +1,11 @@
+unzip (5.50-1woody6) oldstable-security; urgency=medium
+
+  * Changed some format strings to use 512 characters at most, as in 5.52-7.
+  * Changed also insecure use of strcpy in unix/unix.c, as in upstream 5.52.
+  * The above should fix CVE-2005-4667.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 16 Mar 2006 17:13:34 +0100
+
 unzip (5.50-1woody5) oldstable-security; urgency=medium
 
   * Fixed CAN-2005-2475 again. Unpacking of symlinks was broken.

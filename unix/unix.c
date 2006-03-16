@@ -170,7 +170,8 @@ char *do_wild(__G__ wildspec)
         G.notfirstcall = TRUE;
 
         if (!iswild(wildspec)) {
-            strcpy(G.matchname, wildspec);
+            strncpy(G.matchname, wildspec, FILNAMSIZ);
+            G.matchname[FILNAMSIZ-1] = '\0';
             G.have_dirname = FALSE;
             G.wild_dir = NULL;
             return G.matchname;
@@ -188,7 +189,8 @@ char *do_wild(__G__ wildspec)
             if ((G.dirname = (char *)malloc(G.dirnamelen+1)) == (char *)NULL) {
                 Info(slide, 0x201, ((char *)slide,
                   "warning:  cannot allocate wildcard buffers\n"));
-                strcpy(G.matchname, wildspec);
+                strncpy(G.matchname, wildspec, FILNAMSIZ);
+                G.matchname[FILNAMSIZ-1] = '\0';
                 return G.matchname; /* but maybe filespec was not a wildcard */
             }
             strncpy(G.dirname, wildspec, G.dirnamelen);
@@ -224,7 +226,8 @@ char *do_wild(__G__ wildspec)
 
         /* return the raw wildspec in case that works (e.g., directory not
          * searchable, but filespec was not wild and file is readable) */
-        strcpy(G.matchname, wildspec);
+        strncpy(G.matchname, wildspec, FILNAMSIZ);
+        G.matchname[FILNAMSIZ-1] = '\0';
         return G.matchname;
     }
 
