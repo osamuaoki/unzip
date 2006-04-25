@@ -15,6 +15,7 @@
 
 #include <sys/types.h>          /* off_t, time_t, dev_t, ... */
 #include <sys/stat.h>
+#include <unistd.h>
 
 #ifndef COHERENT
 #  include <fcntl.h>            /* O_BINARY for open() w/o CR/LF translation */

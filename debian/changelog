@@ -1,3 +1,10 @@
+unzip (5.52-8) unstable; urgency=low
+
+  * Modified unix/unxcfg.h to always #include <unistd.h>.
+    This should now work on GNU/kFreeBSD (Closes: #340693).
+
+ -- Santiago Vila <sanvila@debian.org>  Tue, 25 Apr 2006 19:50:24 +0200
+
 unzip (5.52-7) unstable; urgency=medium
 
   * Fixed buffer overflow when insanely long filenames are given on the
