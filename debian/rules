@@ -5,7 +5,7 @@ docdir = debian/tmp/usr/share/doc/$(package)
 history = History.552
 
 CC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall $$(getconf LFS_CFLAGS)
 DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR
 INSTALL_PROGRAM = install
 
@@ -17,22 +17,18 @@ ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 endif
 
 build:
-	$(checkdir)
 	$(MAKE) -f unix/Makefile LF2="" \
 		CC="$(CC)" CF="$(CFLAGS) -I. $(DEFINES)" unzips
 	touch build
 
 clean:
-	$(checkdir)
 	rm -f build
 	-$(MAKE) -f unix/Makefile clean
 	rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
 binary-indep: checkroot build
-	$(checkdir)
 
 binary-arch: checkroot build
-	$(checkdir)
 	rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
 	cd debian/tmp && install -d usr/bin usr/man/man1
@@ -53,14 +49,9 @@ binary-arch: checkroot build
 	chmod -R go=rX debian/tmp
 	dpkg --build debian/tmp ..
 
-define checkdir
-	test -f $(package).c -a -f debian/rules
-endef
-
 binary: binary-indep binary-arch
 
 checkroot:
-	$(checkdir)
 	test root = "`whoami`"
 
 .PHONY: binary binary-arch binary-indep clean checkroot

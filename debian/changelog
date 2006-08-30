@@ -1,3 +1,12 @@
+unzip (5.52-9) unstable; urgency=low
+
+  * Added appropriate compiler flags for Large File Support (Closes: #192253).
+    This procedure is blessed by upstream in the FAQ, and as a result,
+    some .zip archives may now be uncompressed using Debian unzip.
+    For those which still may not, please test unzip 6.0 beta.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 30 Aug 2006 10:34:24 +0200
+
 unzip (5.52-8) unstable; urgency=low
 
   * Modified unix/unxcfg.h to always #include <unistd.h>.
