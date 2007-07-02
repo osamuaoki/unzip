@@ -26,9 +26,9 @@ clean:
 	-$(MAKE) -f unix/Makefile clean
 	rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
-binary-indep: checkroot build
+binary-indep: build
 
-binary-arch: checkroot build
+binary-arch: build
 	rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
 	cd debian/tmp && install -d usr/bin usr/man/man1
@@ -51,7 +51,4 @@ binary-arch: checkroot build
 
 binary: binary-indep binary-arch
 
-checkroot:
-	test root = "`whoami`"
-
-.PHONY: binary binary-arch binary-indep clean checkroot
+.PHONY: binary binary-arch binary-indep clean

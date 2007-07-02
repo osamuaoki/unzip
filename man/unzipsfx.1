@@ -163,11 +163,11 @@ Zip archive comment, using the following format:
 $AUTORUN$>[command line string]
 .EE
 .PP
-When \fIunzipsfx\P recognizes the ``$AUTORUN$>'' token at the beginning
+When \fIunzipsfx\fP recognizes the ``$AUTORUN$>'' token at the beginning
 of the Zip archive comment, the remainder of the first line of the comment
 (until the first newline character) is passed as a shell command to the
 operating system using the C rtl ``system'' function. Before executing
-the command, \fIunzipsfx\P displays the command on the console and prompts
+the command, \fIunzipsfx\fP displays the command on the console and prompts
 the user for confirmation.  When the user has switched off prompting by
 specifying the \fB-q\fP option, autorun commands are never executed.
 .PP
