@@ -1,3 +1,10 @@
+unzip (5.52-9etch1) stable-security; urgency=high
+
+  * Apply patch from Tavis Ormandy to address invalid free() calls in
+    the inflate_dynamic() function (CVE-2008-0888).
+
+ -- Florian Weimer <fw@deneb.enyo.de>  Sun, 16 Mar 2008 11:42:07 +0100
+
 unzip (5.52-9) unstable; urgency=low
 
   * Added appropriate compiler flags for Large File Support (Closes: #192253).
