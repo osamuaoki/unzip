@@ -1,3 +1,10 @@
+unzip (5.52-11) unstable; urgency=high
+
+  * Apply patch from Tavis Ormandy to address invalid free() calls in
+    the inflate_dynamic() function (CVE-2008-0888).
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 20 Mar 2008 17:53:00 +0100
+
 unzip (5.52-10) unstable; urgency=low
 
   * Fixed typo in unzipsfx(1). Thanks to Kevin Ryde. Closes: #419479.
