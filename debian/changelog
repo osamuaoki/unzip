@@ -1,3 +1,10 @@
+unzip (5.52-12) unstable; urgency=medium
+
+  * Fixed stack underflow in unshrink.c. Closes: #454037.
+    Thanks to Christian Spieler for the patch.
+
+ -- Santiago Vila <sanvila@debian.org>  Sat, 26 Jul 2008 16:51:38 +0200
+
 unzip (5.52-11) unstable; urgency=high
 
   * Apply patch from Tavis Ormandy to address invalid free() calls in

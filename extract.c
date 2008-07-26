@@ -1543,14 +1543,16 @@ static int extract_or_test_member(__G)    /* return PK-type error code */
                 if (r < PK_DISK) {
                     if ((uO.tflag && uO.qflag) || (!uO.tflag && !QCOND2))
                         Info(slide, 0x401, ((char *)slide,
-                          LoadFarStringSmall(ErrUnzipFile),
-                          LoadFarString(NotEnoughMem),
+                          LoadFarStringSmall(ErrUnzipFile), r == PK_MEM3 ?
+                          LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
                           LoadFarStringSmall2(Unshrink),
                           FnFilter1(G.filename)));
                     else
                         Info(slide, 0x401, ((char *)slide,
-                          LoadFarStringSmall(ErrUnzipNoFile),
-                          LoadFarString(NotEnoughMem),
+                          LoadFarStringSmall(ErrUnzipNoFile), r == PK_MEM3 ?
+                          LoadFarString(NotEnoughMem) :
+                          LoadFarString(InvalidComprData),
                           LoadFarStringSmall2(Unshrink)));
                 }
                 error = r;
