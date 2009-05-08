@@ -3,6 +3,7 @@ Section: utils
 Priority: optional
 Maintainer: Santiago Vila <sanvila@debian.org>
 Standards-Version: 3.7.2
+Build-Depends: libbz2-dev
 
 Package: unzip
 Architecture: any

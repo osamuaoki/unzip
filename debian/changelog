@@ -1,3 +1,21 @@
+unzip (6.0-1) unstable; urgency=low
+
+  * New upstream release. Closes: #496989.
+  * Enabled new Unicode support. Closes: #197427. This may or may not work
+    for your already created zipfiles, but it's not a bug unless they were
+    created using the Unicode feature present in zip 3.0.
+  * Built using DATE_FORMAT=DF_YMD so that unzip -l show dates in ISO format,
+    as that's the only available one which makes sense. Closes: #312886.
+  * Enabled new bzip2 support. Closes: #426798.
+  * Exit code for zipgrep should now be the right one. Closes: #441997.
+  * The reason why a file may not be created is now shown. Closes: #478791.
+  * Summary of changes in this version not being the debian/* files:
+  - Manpages in section 1, not 1L.
+  - Branding patch. UnZip by Debian. Original by Info-ZIP.
+  - Always #include <unistd.h>. Debian GNU/kFreeBSD needs it.
+
+ -- Santiago Vila <sanvila@debian.org>  Fri, 08 May 2009 20:02:40 +0200
+
 unzip (5.52-12) unstable; urgency=medium
 
   * Fixed stack underflow in unshrink.c. Closes: #454037.

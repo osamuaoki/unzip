@@ -2,11 +2,14 @@
 
 package = unzip
 docdir = debian/tmp/usr/share/doc/$(package)
-history = History.552
+history = History.600
 
 CC = gcc
-CFLAGS = -g -Wall $$(getconf LFS_CFLAGS)
-DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR
+CFLAGS = -g -Wall
+DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
+ -DUNICODE_SUPPORT -DUNICODE_WCHAR -DUTF8_MAYBE_NATIVE -DNO_LCHMOD \
+ -DDATE_FORMAT=DF_YMD -DUSE_BZIP2
+
 INSTALL_PROGRAM = install
 
 ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
@@ -17,7 +20,7 @@ ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
 endif
 
 build:
-	$(MAKE) -f unix/Makefile LF2="" \
+	$(MAKE) -f unix/Makefile LF2="" D_USE_BZ2=-DUSE_BZIP2 L_BZ2=-lbz2 \
 		CC="$(CC)" CF="$(CFLAGS) -I. $(DEFINES)" unzips
 	touch build
 
