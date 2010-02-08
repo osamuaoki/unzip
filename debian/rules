@@ -11,12 +11,14 @@ DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
  -DDATE_FORMAT=DF_YMD -DUSE_BZIP2
 
 INSTALL_PROGRAM = install
+STRIP = true
 
 ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
   CFLAGS += -O2
 endif
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
   INSTALL_PROGRAM += -s
+  STRIP = strip --remove-section=.comment --remove-section=.note
 endif
 
 build:
@@ -26,7 +28,7 @@ build:
 
 clean:
 	rm -f build
-	-$(MAKE) -f unix/Makefile clean
+	$(MAKE) -f unix/Makefile clean
 	rm -rf *~ debian/tmp debian/*~ debian/files* debian/substvars
 
 binary-indep: build
@@ -34,18 +36,21 @@ binary-indep: build
 binary-arch: build
 	rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
-	cd debian/tmp && install -d usr/bin usr/man/man1
+	cd debian/tmp && install -d usr/bin usr/man/man1 usr/lib/mime/packages
 	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr \
 		INSTALL_PROGRAM="$(INSTALL_PROGRAM)"
+	install -m 755 debian/postinst debian/postrm debian/tmp/DEBIAN
+	install -m 644 debian/mime debian/tmp/usr/lib/mime/packages/$(package)
 	cat debian/copyright.in LICENSE > $(docdir)/copyright
 	cp debian/changelog $(docdir)/changelog.Debian
 	cp -p History.* BUGS ToDo $(docdir)
 	cd $(docdir) && gzip -9 changelog.Debian History.*
 	ln -s $(history).gz $(docdir)/changelog.gz
+	cd debian/tmp/usr/bin && $(STRIP) funzip unzip unzipsfx zipinfo
 	gzip -r9 debian/tmp/usr/man
 	cd debian/tmp && mv usr/man usr/share
 	dpkg-shlibdeps unzip
-	dpkg-gencontrol -isp
+	dpkg-gencontrol
 	cd debian/tmp && \
 		md5sum `find * -type f ! -regex "DEBIAN/.*"` > DEBIAN/md5sums
 	chown -R root:root debian/tmp
