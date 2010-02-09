@@ -1,3 +1,9 @@
+unzip (6.0-3) unstable; urgency=low
+
+  * Added "set -e" to postinst and postrm.
+
+ -- Santiago Vila <sanvila@debian.org>  Tue, 09 Feb 2010 23:53:42 +0100
+
 unzip (6.0-2) unstable; urgency=low
 
   * Do not ignore errors from make clean (lintian warning)
