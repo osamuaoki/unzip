@@ -52,7 +52,6 @@
 
 #include <sys/types.h>          /* off_t, time_t, dev_t, ... */
 #include <sys/stat.h>
-#include <unistd.h>
 
 #ifdef NO_OFF_T
   typedef long zoff_t;

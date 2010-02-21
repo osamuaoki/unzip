@@ -1,3 +1,11 @@
+unzip (6.0-4) unstable; urgency=low
+
+  * Added homepage field to control file.
+  * Switch to 3.0 (quilt) source format.
+  * Support cross-build.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 21 Feb 2010 17:01:00 +0100
+
 unzip (6.0-3) unstable; urgency=low
 
   * Added "set -e" to postinst and postrm.

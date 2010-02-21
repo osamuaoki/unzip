@@ -10,14 +10,19 @@ DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
  -DUNICODE_SUPPORT -DUNICODE_WCHAR -DUTF8_MAYBE_NATIVE -DNO_LCHMOD \
  -DDATE_FORMAT=DF_YMD -DUSE_BZIP2
 
-INSTALL_PROGRAM = install
 STRIP = true
+
+DEB_BUILD_GNU_TYPE := $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+DEB_HOST_GNU_TYPE := $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+
+ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
+  CC=$(DEB_HOST_GNU_TYPE)-gcc
+endif
 
 ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
   CFLAGS += -O2
 endif
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
-  INSTALL_PROGRAM += -s
   STRIP = strip --remove-section=.comment --remove-section=.note
 endif
 
@@ -37,8 +42,7 @@ binary-arch: build
 	rm -rf debian/tmp
 	install -d debian/tmp/DEBIAN $(docdir)
 	cd debian/tmp && install -d usr/bin usr/man/man1 usr/lib/mime/packages
-	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr \
-		INSTALL_PROGRAM="$(INSTALL_PROGRAM)"
+	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
 	install -m 755 debian/postinst debian/postrm debian/tmp/DEBIAN
 	install -m 644 debian/mime debian/tmp/usr/lib/mime/packages/$(package)
 	cat debian/copyright.in LICENSE > $(docdir)/copyright
@@ -49,7 +53,7 @@ binary-arch: build
 	cd debian/tmp/usr/bin && $(STRIP) funzip unzip unzipsfx zipinfo
 	gzip -r9 debian/tmp/usr/man
 	cd debian/tmp && mv usr/man usr/share
-	dpkg-shlibdeps unzip
+	dpkg-shlibdeps debian/tmp/usr/bin/unzip
 	dpkg-gencontrol
 	cd debian/tmp && \
 		md5sum `find * -type f ! -regex "DEBIAN/.*"` > DEBIAN/md5sums
