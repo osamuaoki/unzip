@@ -57,7 +57,7 @@ binary-arch: build
 	dpkg-gencontrol
 	cd debian/tmp && \
 		md5sum `find * -type f ! -regex "DEBIAN/.*"` > DEBIAN/md5sums
-	chown -R root:root debian/tmp
+	chown -R 0:0 debian/tmp
 	chmod -R go=rX debian/tmp
 	dpkg --build debian/tmp ..
 

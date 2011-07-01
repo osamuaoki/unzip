@@ -1,35 +1,9 @@
-unzip (6.0-4+deb6u3) squeeze-lts; urgency=medium
+unzip (6.0-5) unstable; urgency=low
 
-  * Non-maintainer upload by the Debian LTS team.
-  * CVE-2015-7696: Fix heap overflow. Closes: #802162
-  * CVE-2015-7697: Fix denial of service due to infinite loop with
-    some invalid input data. Closes: #802160
-  * Add a third patch fixing an integer underflow found by
-    Stefan Cornelius.
+  * Handle the PKWare verification bit of internal attributes.
+    Patch taken from 6.10 beta. Thanks to sms. Closes: #630078.
 
- -- Raphaël Hertzog <hertzog@debian.org>  Thu, 22 Oct 2015 10:49:06 +0200
-
-unzip (6.0-4+deb6u2) squeeze-lts; urgency=high
-
-  * Non-maintainer upload by the Squeeze LTS Team. 
-  * CVE-2014-9636: Fix heap overflow. Ensure that compressed
-    and uncompressed block sizes match when using STORED method
-    in extract.c. Closes: #776589.
-  * CVE-2014-8139: Update patch. The old one was not right
-    and had regressions with executable jar files. Closes: #775640
-
- -- Thorsten Alteholz <debian@alteholz.de>  Sat, 07 Feb 2015 14:01:00 +0100
-
-unzip (6.0-4+deb6u1) squeeze-lts; urgency=high
-
-  * Non-maintainer upload by the Squeeze LTS Team. 
-  * Apply upstream fix for three security bugs.
-    CVE-2014-8139: CRC32 verification heap-based overflow
-    CVE-2014-8140: out-of-bounds write issue in test_compr_eb()
-    CVE-2014-8141: out-of-bounds read issues in getZip64Data()
-    (Closes: #773722)
-
- -- Thorsten Alteholz <debian@alteholz.de>  Sun, 28 Dec 2014 19:01:00 +0100
+ -- Santiago Vila <sanvila@debian.org>  Fri, 01 Jul 2011 19:06:08 +0200
 
 unzip (6.0-4) unstable; urgency=low
 
