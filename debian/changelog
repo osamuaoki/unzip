@@ -1,3 +1,9 @@
+unzip (6.0-6) unstable; urgency=low
+
+  * Added hardening flags. Closes: #656268.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 01 Apr 2012 00:01:40 +0200
+
 unzip (6.0-5) unstable; urgency=low
 
   * Handle the PKWare verification bit of internal attributes.

@@ -5,7 +5,10 @@ docdir = debian/tmp/usr/share/doc/$(package)
 history = History.600
 
 CC = gcc
-CFLAGS = -g -Wall
+export DEB_BUILD_MAINT_OPTIONS=hardening=-format
+CFLAGS := `dpkg-buildflags --get CFLAGS` -Wall
+LDFLAGS := `dpkg-buildflags --get LDFLAGS`
+CPPFLAGS := `dpkg-buildflags --get CPPFLAGS`
 DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
  -DUNICODE_SUPPORT -DUNICODE_WCHAR -DUTF8_MAYBE_NATIVE -DNO_LCHMOD \
  -DDATE_FORMAT=DF_YMD -DUSE_BZIP2
@@ -19,16 +22,14 @@ ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
   CC=$(DEB_HOST_GNU_TYPE)-gcc
 endif
 
-ifeq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-  CFLAGS += -O2
-endif
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
   STRIP = strip --remove-section=.comment --remove-section=.note
 endif
 
 build:
-	$(MAKE) -f unix/Makefile LF2="" D_USE_BZ2=-DUSE_BZIP2 L_BZ2=-lbz2 \
-		CC="$(CC)" CF="$(CFLAGS) -I. $(DEFINES)" unzips
+	$(MAKE) -f unix/Makefile D_USE_BZ2=-DUSE_BZIP2 L_BZ2=-lbz2 \
+		CC="$(CC)" LF2="$(LDFLAGS)" \
+		CF="$(CFLAGS) $(CPPFLAGS) -I. $(DEFINES)" unzips
 	touch build
 
 clean:
