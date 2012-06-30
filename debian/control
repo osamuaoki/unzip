@@ -12,6 +12,7 @@ Depends: ${shlibs:Depends}
 Conflicts: unzip-crypt (<< 5.41)
 Replaces: unzip-crypt (<< 5.41)
 Suggests: zip
+Multi-Arch: foreign
 Description: De-archiver for .zip files
  InfoZIP's unzip program. With the exception of multi-volume archives
  (ie, .ZIP files that are split across several disks using PKZIP's /& option),
