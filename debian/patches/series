@@ -2,3 +2,4 @@
 02-branding-patch-this-is-debian-unzip
 03-include-unistd-for-kfreebsd
 04-handle-pkware-verification-bit
+05-fix-uid-gid-handling

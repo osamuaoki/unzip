@@ -1,3 +1,13 @@
+unzip (6.0-8) unstable; urgency=low
+
+  * Made unzip -X to actually restore uid/gid information.
+    Closes: #689212. Thanks to Axel Scheepers for the report.
+  * Disabled memcpy, as it is being used on overlapping buffers,
+    leading to data corruption. Closes: #694601.
+    Thanks to M Joonas Pihlaja for the report.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 28 Nov 2012 12:41:34 +0100
+
 unzip (6.0-7) unstable; urgency=low
 
   * Added Multi-Arch: foreign. Closes: #678812.
