@@ -11,7 +11,8 @@ LDFLAGS := `dpkg-buildflags --get LDFLAGS`
 CPPFLAGS := `dpkg-buildflags --get CPPFLAGS`
 DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
  -DUNICODE_SUPPORT -DUNICODE_WCHAR -DUTF8_MAYBE_NATIVE -DNO_LCHMOD \
- -DDATE_FORMAT=DF_YMD -DUSE_BZIP2 -DIZ_HAVE_UXUIDGID -DNOMEMCPY
+ -DDATE_FORMAT=DF_YMD -DUSE_BZIP2 -DIZ_HAVE_UXUIDGID -DNOMEMCPY \
+ -DNO_WORKING_ISPRINT
 
 STRIP = true
 
@@ -20,10 +21,13 @@ DEB_HOST_GNU_TYPE := $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
   CC=$(DEB_HOST_GNU_TYPE)-gcc
+  STRIPCMD=$(DEB_HOST_GNU_TYPE)-strip
+else
+  STRIPCMD=strip
 endif
 
 ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
-  STRIP = strip --remove-section=.comment --remove-section=.note
+  STRIP = $(STRIPCMD) --remove-section=.comment --remove-section=.note
 endif
 
 build:

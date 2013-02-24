@@ -1,65 +1,10 @@
-unzip (6.0-8+deb7u6) wheezy-security; urgency=medium
+unzip (6.0-9) unstable; urgency=low
 
-  * Non-maintainer upload by the Debian LTS team.
-  * Fix CVE-2014-9913: buffer overflow in "unzip -l" with malformed
-    zip archives. Closes: #847485
-  * Fix CVE-2016-9844: buffer overflow in "zipinfo" with malformed
-    zip archives. Closes: #847486
+  * Added NO_WORKING_ISPRINT to DEFINES so that UTF8 filenames are
+    displayed correctly. Reported by Slavek Banko. Closes: #682682.
+  * Use the right strip command when cross-building. Closes: #695141.
 
- -- Raphaël Hertzog <hertzog@debian.org>  Tue, 13 Dec 2016 12:01:06 +0100
-
-unzip (6.0-8+deb7u5) wheezy-security; urgency=high
-
-  * Non-maintainer upload by the Security Team.
-  * Update 16-fix-integer-underflow-csiz-decrypted patch.
-    Fix regression in handling 0-byte files. (Closes: #804595)
-
- -- Salvatore Bonaccorso <carnil@debian.org>  Mon, 09 Nov 2015 21:02:00 +0100
-
-unzip (6.0-8+deb7u4) wheezy-security; urgency=high
-
-   * Non-maintainer upload by the Security Team.
-   * Fix infinite loop when extracting password-protected archive.
-     This is CVE-2015-7697. Closes: #802160.
-   * Fix heap overflow when extracting password-protected archive.
-     This is CVE-2015-7696. Closes: #802162.
-   * Fix additional unsigned overflow on invalid input.
-
- -- Laszlo Boszormenyi (GCS) <gcs@debian.org>  Thu, 22 Oct 2015 12:59:24 +0000
-
-unzip (6.0-8+deb7u3) wheezy; urgency=medium
-
-  * Apply the following patches from jessie:
-  - Fixed bug "unzip thinks some files are symlinks". Closes: #717029.
-    Reported by Jeff King. Patch by Andreas Schwab.
-  - Increase size of cfactorstr array in list.c to avoid a buffer
-    overflow problem. Closes: #741384.
-  - Fix zipinfo crash where a value <= 25.5 was printed in a buffer
-    having room only for values < 10.0. Closes: #744212.
-
- -- Santiago Vila <sanvila@debian.org>  Sun, 21 Jun 2015 11:00:00 +0200
-
-unzip (6.0-8+deb7u2) wheezy-security; urgency=high
-
-  * Security upload.
-  * CVE-2014-9636: Fix heap overflow. Ensure that compressed
-    and uncompressed block sizes match when using STORED method
-    in extract.c. Closes: #776589.
-  * CVE-2014-8139: Update patch. The old one was not right
-    and had regressions with executable jar files. Closes: #775640
-
- -- Santiago Vila <sanvila@debian.org>  Sun, 01 Feb 2015 23:48:28 +0100
-
-unzip (6.0-8+deb7u1) wheezy-security; urgency=high
-
-  * Non-maintainer upload by the Security Team.
-  * Apply upstream fix for three security bugs.
-    CVE-2014-8139: CRC32 verification heap-based overflow
-    CVE-2014-8140: out-of-bounds write issue in test_compr_eb()
-    CVE-2014-8141: out-of-bounds read issues in getZip64Data()
-    (Closes: #773722)
-
- -- Salvatore Bonaccorso <carnil@debian.org>  Fri, 26 Dec 2014 20:04:35 +0100
+ -- Santiago Vila <sanvila@debian.org>  Sun, 24 Feb 2013 17:12:00 +0100
 
 unzip (6.0-8) unstable; urgency=low
 
