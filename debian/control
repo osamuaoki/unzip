@@ -2,15 +2,13 @@ Source: unzip
 Section: utils
 Priority: optional
 Maintainer: Santiago Vila <sanvila@debian.org>
-Standards-Version: 3.9.2
+Standards-Version: 3.9.4
 Build-Depends: libbz2-dev
 Homepage: http://www.info-zip.org/UnZip.html
 
 Package: unzip
 Architecture: any
 Depends: ${shlibs:Depends}
-Conflicts: unzip-crypt (<< 5.41)
-Replaces: unzip-crypt (<< 5.41)
 Suggests: zip
 Multi-Arch: foreign
 Description: De-archiver for .zip files

@@ -3,3 +3,4 @@
 03-include-unistd-for-kfreebsd
 04-handle-pkware-verification-bit
 05-fix-uid-gid-handling
+06-initialize-the-symlink-flag

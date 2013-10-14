@@ -68,4 +68,8 @@ binary-arch: build
 
 binary: binary-indep binary-arch
 
+build-arch: build
+
+build-indep: build
+
 .PHONY: binary binary-arch binary-indep clean
