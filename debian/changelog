@@ -1,3 +1,12 @@
+unzip (6.0-11) unstable; urgency=medium
+
+  * Lowered mime priority to 3, somewhat below 5 which is file-roller
+    default value. Closes: #727306.
+  * Increase size of cfactorstr array in list.c to avoid a buffer
+    overflow problem. Closes: #741384.
+
+ -- Santiago Vila <sanvila@debian.org>  Mon, 17 Mar 2014 17:38:50 +0100
+
 unzip (6.0-10) unstable; urgency=low
 
   * Fixed bug "unzip thinks some files are symlinks". Closes: #717029.
