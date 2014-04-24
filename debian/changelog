@@ -1,3 +1,14 @@
+unzip (6.0-12) unstable; urgency=medium
+
+  * Fix zipinfo crash where a value <= 25.5 was printed in a buffer
+    having room only for values < 10.0. The integral part is now printed
+    at attribs[11] using %2u instead of attribs[12] using %u.
+    This way the output is the same as before for values < 10.
+    Authors tell me that the next unzip release will have a fix
+    like this, at least for the Unix case. Closes: #744212.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 24 Apr 2014 23:39:38 +0200
+
 unzip (6.0-11) unstable; urgency=medium
 
   * Lowered mime priority to 3, somewhat below 5 which is file-roller

@@ -5,3 +5,4 @@
 05-fix-uid-gid-handling
 06-initialize-the-symlink-flag
 07-increase-size-of-cfactorstr
+08-allow-greater-hostver-values
