@@ -7,6 +7,9 @@ history = History.600
 CC = gcc
 export DEB_BUILD_MAINT_OPTIONS=hardening=-format
 CFLAGS := `dpkg-buildflags --get CFLAGS` -Wall
+ifeq ($(DEB_HOST_ARCH),armhf)
+  CFLAGS := `DEB_CFLAGS_STRIP=-O2 dpkg-buildflags --get CFLAGS` -Wall
+endif
 LDFLAGS := `dpkg-buildflags --get LDFLAGS`
 CPPFLAGS := `dpkg-buildflags --get CPPFLAGS`
 DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \

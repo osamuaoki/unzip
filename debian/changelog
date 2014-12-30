@@ -1,3 +1,10 @@
+unzip (6.0-14) unstable; urgency=medium
+
+  * Drop -O2 optimization on armhf as a workaround for gcc Bug #764732.
+    Closes: #773785.
+
+ -- Santiago Vila <sanvila@debian.org>  Tue, 30 Dec 2014 22:17:12 +0100
+
 unzip (6.0-13) unstable; urgency=medium
 
   * Apply upstream fix for three security bugs. Closes: #773722.
