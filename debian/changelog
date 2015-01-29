@@ -1,3 +1,12 @@
+unzip (6.0-15) unstable; urgency=medium
+
+  * Fix heap overflow. Ensure that compressed and uncompressed
+    block sizes match when using STORED method in extract.c.
+    Patch taken from Ubuntu. Thanks a lot. Closes: #776589.
+    For reference, this is CVE-2014-9636.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 29 Jan 2015 18:39:52 +0100
+
 unzip (6.0-14) unstable; urgency=medium
 
   * Drop -O2 optimization on armhf as a workaround for gcc Bug #764732.
