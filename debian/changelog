@@ -1,3 +1,13 @@
+unzip (6.0-16) unstable; urgency=medium
+
+  * Update 09-cve-2014-8139-crc-overflow to fix CVE-2014-8139
+    the right way (patch by the author). Closes: #775640.
+  * Update 10-cve-2014-8140-test-compr-eb to apply cleanly.
+  * Update 12-cve-2014-9636-test-compr-eb to follow the extract.c
+    file from the author.
+
+ -- Santiago Vila <sanvila@debian.org>  Fri, 30 Jan 2015 22:16:08 +0100
+
 unzip (6.0-15) unstable; urgency=medium
 
   * Fix heap overflow. Ensure that compressed and uncompressed
