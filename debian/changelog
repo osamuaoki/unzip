@@ -1,3 +1,14 @@
+unzip (6.0-4+deb6u2) squeeze-lts; urgency=high
+
+  * Non-maintainer upload by the Squeeze LTS Team. 
+  * CVE-2014-9636: Fix heap overflow. Ensure that compressed
+    and uncompressed block sizes match when using STORED method
+    in extract.c. Closes: #776589.
+  * CVE-2014-8139: Update patch. The old one was not right
+    and had regressions with executable jar files. Closes: #775640
+
+ -- Thorsten Alteholz <debian@alteholz.de>  Sat, 07 Feb 2015 14:01:00 +0100
+
 unzip (6.0-4+deb6u1) squeeze-lts; urgency=high
 
   * Non-maintainer upload by the Squeeze LTS Team. 
