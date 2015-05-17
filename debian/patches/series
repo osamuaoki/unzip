@@ -10,12 +10,4 @@
 10-cve-2014-8140-test-compr-eb
 11-cve-2014-8141-getzip64data
 12-cve-2014-9636-test-compr-eb
-14-cve-2015-7696
-15-cve-2015-7697
-16-fix-integer-underflow-csiz-decrypted
-18-cve-2014-9913-unzip-buffer-overflow
-19-cve-2016-9844-zipinfo-buffer-overflow
-CVE-2019-13232.patch
-CVE-2019-13232_part2.patch
-
-CVE-2018-1000035.patch
+13-remove-build-date

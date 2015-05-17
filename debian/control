@@ -2,13 +2,13 @@ Source: unzip
 Section: utils
 Priority: optional
 Maintainer: Santiago Vila <sanvila@debian.org>
-Standards-Version: 3.9.5
-Build-Depends: libbz2-dev
+Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 9), libbz2-dev
 Homepage: http://www.info-zip.org/UnZip.html
 
 Package: unzip
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: zip
 Multi-Arch: foreign
 Description: De-archiver for .zip files

@@ -1,65 +1,10 @@
-unzip (6.0-16+deb8u6) jessie-security; urgency=high
+unzip (6.0-17) unstable; urgency=medium
 
-  * Non-maintainer upload by the LTS team.
-  * CVE-2018-1000035
-    Fix buffer overflow in password protected ZIP archives.
-    Patch borrowed from SUSE.
- 
- -- Thorsten Alteholz <debian@alteholz.de>  Tue, 28 Jan 2020 19:03:02 +0100
+  * Switch to dh.
+  * Remove build date embedded in binary to make the build reproducible.
+    Thanks to Jérémy Bobbio <lunar@debian.org>. Closes: #782851.
 
-unzip (6.0-16+deb8u5) jessie-security; urgency=high
-
-  * Non-maintainer upload by the LTS team.
-  * There is a zip-like file in the Firefox distribution, omni.ja, which is a
-    zip container with the central directory placed at the start of the file
-    instead of after the local entries as required by the zip standard. This
-    update now permits such containers to not raise a zip bomb alert, where in
-    fact there are no overlaps. (Closes: #932404)
-
- -- Markus Koschany <apo@debian.org>  Sun, 28 Jul 2019 16:07:29 +0200
-
-unzip (6.0-16+deb8u4) jessie-security; urgency=high
-
-  * Non-maintainer upload by the LTS team.
-  * David Fifield discovered a way to construct non-recursive "zip bombs" that
-    achieve a high compression ratio by overlapping files inside the zip
-    container. However the output size increases quadratically in the input
-    size, reaching a compression ratio of over 28 million (10 MB -> 281 TB) at
-    the limits of the zip format which can cause a denial-of-service. Mark
-    Adler provided a patch to detect and reject such zip files for the unzip
-    program.
-
- -- Markus Koschany <apo@debian.org>  Sun, 07 Jul 2019 19:44:27 +0200
-
-unzip (6.0-16+deb8u3) jessie; urgency=medium
-
-  * Update patch 12-cve-2014-9636-test-compr-eb to follow revised
-    patch "unzip-6.0_overflow3.diff" from mancha (patch author).
-  * Fix CVE-2014-9913, buffer overflow in unzip. Closes: #847485.
-    Patch by the author.
-  * Fix CVE-2016-9844, buffer overflow in zipinfo. Closes: #847486.
-    Patch by the author.
-
- -- Santiago Vila <sanvila@debian.org>  Sat, 28 Jan 2017 14:03:06 +0100
-
-unzip (6.0-16+deb8u2) jessie-security; urgency=high
-
-  * Non-maintainer upload by the Security Team.
-  * Update 16-fix-integer-underflow-csiz-decrypted patch.
-    Fix regression in handling 0-byte files. (Closes: #804595)
-
- -- Salvatore Bonaccorso <carnil@debian.org>  Mon, 09 Nov 2015 20:49:54 +0100
-
-unzip (6.0-16+deb8u1) jessie-security; urgency=high
-
-   * Non-maintainer upload by the Security Team.
-   * Fix infinite loop when extracting password-protected archive.
-     This is CVE-2015-7697. Closes: #802160.
-   * Fix heap overflow when extracting password-protected archive.
-     This is CVE-2015-7696. Closes: #802162.
-   * Fix additional unsigned overflow on invalid input.
-
- -- Laszlo Boszormenyi (GCS) <gcs@debian.org>  Thu, 22 Oct 2015 12:51:52 +0000
+ -- Santiago Vila <sanvila@debian.org>  Sun, 17 May 2015 12:41:52 +0200
 
 unzip (6.0-16) unstable; urgency=medium
 
