@@ -1,3 +1,15 @@
+unzip (6.0-8+deb7u3) wheezy; urgency=medium
+
+  * Apply the following patches from jessie:
+  - Fixed bug "unzip thinks some files are symlinks". Closes: #717029.
+    Reported by Jeff King. Patch by Andreas Schwab.
+  - Increase size of cfactorstr array in list.c to avoid a buffer
+    overflow problem. Closes: #741384.
+  - Fix zipinfo crash where a value <= 25.5 was printed in a buffer
+    having room only for values < 10.0. Closes: #744212.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 21 Jun 2015 11:00:00 +0200
+
 unzip (6.0-8+deb7u2) wheezy-security; urgency=high
 
   * Security upload.
