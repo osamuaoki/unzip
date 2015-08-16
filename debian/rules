@@ -18,7 +18,6 @@ DEFINES = -DACORN_FTYPE_NFS -DWILD_STOP_AT_DIR -DLARGE_FILE_SUPPORT \
 
 override_dh_auto_clean:
 	$(MAKE) -f unix/Makefile clean
-	rm -f debian/copyright
 
 override_dh_auto_build:
 	$(MAKE) -f unix/Makefile D_USE_BZ2=-DUSE_BZIP2 L_BZ2=-lbz2 \
@@ -27,10 +26,6 @@ override_dh_auto_build:
 
 override_dh_auto_install:
 	$(MAKE) -f unix/Makefile install prefix=`pwd`/debian/tmp/usr
-
-override_dh_installdocs:
-	cat debian/copyright.in LICENSE > debian/copyright
-	dh_installdocs
 
 override_dh_strip:
 	dh_strip

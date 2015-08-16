@@ -1,3 +1,10 @@
+unzip (6.0-18) unstable; urgency=medium
+
+  * Ship a debian/copyright file in source package instead of generating
+    it a build time. Closes: #795567.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 16 Aug 2015 23:34:42 +0200
+
 unzip (6.0-17) unstable; urgency=medium
 
   * Switch to dh.
