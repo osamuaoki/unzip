@@ -1,3 +1,14 @@
+unzip (6.0-4+deb6u3) squeeze-lts; urgency=medium
+
+  * Non-maintainer upload by the Debian LTS team.
+  * CVE-2015-7696: Fix heap overflow. Closes: #802162
+  * CVE-2015-7697: Fix denial of service due to infinite loop with
+    some invalid input data. Closes: #802160
+  * Add a third patch fixing an integer underflow found by
+    Stefan Cornelius.
+
+ -- Raphaël Hertzog <hertzog@debian.org>  Thu, 22 Oct 2015 10:49:06 +0200
+
 unzip (6.0-4+deb6u2) squeeze-lts; urgency=high
 
   * Non-maintainer upload by the Squeeze LTS Team. 

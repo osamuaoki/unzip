@@ -5,3 +5,6 @@
 07-CVE-2014-8140-test-compr-eb
 08-CVE-2014-8141-getzip64data
 12-cve-2014-9636-test-compr-eb
+CVE-2015-7696.patch
+CVE-2015-7697.patch
+fix-integer-underflow-csiz-decrypted.patch
