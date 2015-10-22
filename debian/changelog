@@ -1,3 +1,15 @@
+unzip (6.0-19) unstable; urgency=medium
+
+  * Fix infinite loop when extracting password-protected archive.
+    This is CVE-2015-7697. Closes: #802160.
+  * Fix heap overflow when extracting password-protected archive.
+    This is CVE-2015-7696. Closes: #802162.
+  * Fix additional unsigned overflow on invalid input.
+  * Thanks a lot to Raphaël Hertzog for the squeeze-lts release,
+    from which this upload is mainly derived.
+
+ -- Santiago Vila <sanvila@debian.org>  Thu, 22 Oct 2015 12:12:46 +0200
+
 unzip (6.0-18) unstable; urgency=medium
 
   * Ship a debian/copyright file in source package instead of generating
