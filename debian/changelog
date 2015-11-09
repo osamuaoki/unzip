@@ -1,3 +1,11 @@
+unzip (6.0-16+deb8u2) jessie-security; urgency=high
+
+  * Non-maintainer upload by the Security Team.
+  * Update 16-fix-integer-underflow-csiz-decrypted patch.
+    Fix regression in handling 0-byte files. (Closes: #804595)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Mon, 09 Nov 2015 20:49:54 +0100
+
 unzip (6.0-16+deb8u1) jessie-security; urgency=high
 
    * Non-maintainer upload by the Security Team.
