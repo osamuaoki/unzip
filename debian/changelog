@@ -1,3 +1,20 @@
+unzip (6.0-21) unstable; urgency=medium
+
+  * Rename all debian/patches/* to have .patch ending.
+  * Update 12-cve-2014-9636-test-compr-eb.patch to follow revised
+    patch "unzip-6.0_overflow3.diff" from mancha (patch author).
+    Update also to follow upstream coding style.
+  * Drop workaround for gcc optimization bug on ARM (GCC Bug #764732)
+    in the hope that it's not present anymore in GCC-6.
+  * Allow source to be cross-built. Closes: #836051.
+  * Do not ignore Unix Timestamps. Closes: #842993. Patch by the author.
+  * Fix CVE-2014-9913, buffer overflow in unzip. Closes: #847485.
+    Patch by the author.
+  * Fix CVE-2016-9844, buffer overflow in zipinfo. Closes: #847486.
+    Patch by the author.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 11 Dec 2016 21:03:30 +0100
+
 unzip (6.0-20) unstable; urgency=high
 
   * Update debian/patches/16-fix-integer-underflow-csiz-decrypted to fix

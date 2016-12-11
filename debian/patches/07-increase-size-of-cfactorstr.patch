@@ -1,6 +1,6 @@
-From: sms
+From: "Steven M. Schweda" <sms@antinode.info>
 Subject: Increase size of cfactorstr array to avoid buffer overflow
-Bug-Debian: http://bugs.debian.org/741384
+Bug-Debian: https://bugs.debian.org/741384
 X-Debian-version: 6.0-11
 
 --- a/list.c

@@ -1,6 +1,6 @@
-From: Steven Schweda
+From: "Steven M. Schweda" <sms@antinode.info>
 Subject: Handle the PKWare verification bit of internal attributes
-Bug-Debian: http://bugs.debian.org/630078
+Bug-Debian: https://bugs.debian.org/630078
 X-Debian-version: 6.0-5
 
 --- a/process.c

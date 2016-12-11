@@ -1,6 +1,6 @@
 From: Andreas Schwab <schwab@linux-m68k.org>
 Subject: Initialize the symlink flag
-Bug-Debian: http://bugs.debian.org/717029
+Bug-Debian: https://bugs.debian.org/717029
 X-Debian-version: 6.0-10
 
 --- a/process.c
