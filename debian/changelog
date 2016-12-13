@@ -1,3 +1,13 @@
+unzip (6.0-8+deb7u6) wheezy-security; urgency=medium
+
+  * Non-maintainer upload by the Debian LTS team.
+  * Fix CVE-2014-9913: buffer overflow in "unzip -l" with malformed
+    zip archives. Closes: #847485
+  * Fix CVE-2016-9844: buffer overflow in "zipinfo" with malformed
+    zip archives. Closes: #847486
+
+ -- Raphaël Hertzog <hertzog@debian.org>  Tue, 13 Dec 2016 12:01:06 +0100
+
 unzip (6.0-8+deb7u5) wheezy-security; urgency=high
 
   * Non-maintainer upload by the Security Team.
