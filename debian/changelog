@@ -1,3 +1,14 @@
+unzip (6.0-16+deb8u3) jessie; urgency=medium
+
+  * Update patch 12-cve-2014-9636-test-compr-eb to follow revised
+    patch "unzip-6.0_overflow3.diff" from mancha (patch author).
+  * Fix CVE-2014-9913, buffer overflow in unzip. Closes: #847485.
+    Patch by the author.
+  * Fix CVE-2016-9844, buffer overflow in zipinfo. Closes: #847486.
+    Patch by the author.
+
+ -- Santiago Vila <sanvila@debian.org>  Sat, 28 Jan 2017 14:03:06 +0100
+
 unzip (6.0-16+deb8u2) jessie-security; urgency=high
 
   * Non-maintainer upload by the Security Team.
