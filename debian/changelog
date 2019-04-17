@@ -1,3 +1,10 @@
+unzip (6.0-21+deb9u1) stretch; urgency=medium
+
+  * Fix buffer overflow in password protected ZIP archives. Closes: #889838.
+    Patch borrowed from SUSE. For reference, this is CVE-2018-1000035.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 17 Apr 2019 21:23:40 +0200
+
 unzip (6.0-21) unstable; urgency=medium
 
   * Rename all debian/patches/* to have .patch ending.

@@ -17,3 +17,4 @@
 17-restore-unix-timestamps-accurately.patch
 18-cve-2014-9913-unzip-buffer-overflow.patch
 19-cve-2016-9844-zipinfo-buffer-overflow.patch
+20-cve-2018-1000035-unzip-buffer-overflow.patch
