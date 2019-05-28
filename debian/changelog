@@ -1,3 +1,10 @@
+unzip (6.0-23) unstable; urgency=medium
+
+  * Fix lame code in fileio.c which parsed 64-bit values incorrectly.
+    Thanks to David Fifield for the report. Closes: #929502.
+
+ -- Santiago Vila <sanvila@debian.org>  Wed, 29 May 2019 00:24:08 +0200
+
 unzip (6.0-22) unstable; urgency=medium
 
   * Fix buffer overflow in password protected ZIP archives. Closes: #889838.
