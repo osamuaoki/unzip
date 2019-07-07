@@ -15,3 +15,4 @@
 16-fix-integer-underflow-csiz-decrypted
 18-cve-2014-9913-unzip-buffer-overflow
 19-cve-2016-9844-zipinfo-buffer-overflow
+CVE-2019-13232.patch

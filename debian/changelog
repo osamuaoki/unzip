@@ -1,3 +1,16 @@
+unzip (6.0-16+deb8u4) jessie-security; urgency=high
+
+  * Non-maintainer upload by the LTS team.
+  * David Fifield discovered a way to construct non-recursive "zip bombs" that
+    achieve a high compression ratio by overlapping files inside the zip
+    container. However the output size increases quadratically in the input
+    size, reaching a compression ratio of over 28 million (10 MB -> 281 TB) at
+    the limits of the zip format which can cause a denial-of-service. Mark
+    Adler provided a patch to detect and reject such zip files for the unzip
+    program.
+
+ -- Markus Koschany <apo@debian.org>  Sun, 07 Jul 2019 19:44:27 +0200
+
 unzip (6.0-16+deb8u3) jessie; urgency=medium
 
   * Update patch 12-cve-2014-9636-test-compr-eb to follow revised
