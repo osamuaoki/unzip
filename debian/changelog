@@ -1,29 +1,11 @@
-unzip (6.0-23+deb10u3) buster-security; urgency=medium
+unzip (6.0-24) unstable; urgency=medium
 
-  * Non-maintainer upload by the LTS Team.
-  * CVE-2022-0530: segmentation fault on invalid input.
-  * CVE-2022-0529: heap buffer overwrite. Closes: #1010355.
-
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 22 Sep 2022 18:25:09 +0200
-
-unzip (6.0-23+deb10u2) buster; urgency=medium
-
-  * Two more patches from Mark Adler for CVE-2019-13232. Closes: #963996.
-  - Fix bug in UZbunzip2() that incorrectly updated G.incnt.
-  - Fix bug in UZinflate() that incorrectly updated G.incnt.
-
- -- Santiago Vila <sanvila@debian.org>  Sun, 10 Jan 2021 16:12:00 +0100
-
-unzip (6.0-23+deb10u1) buster; urgency=medium
-
-  * Apply three patches by Mark Adler to fix CVE-2019-13232.
+  * Apply two patches by Mark Adler:
   - Fix bug in undefer_input() that misplaced the input state.
-  - Detect and reject a zip bomb using overlapped entries.
-    Bug discovered by David Fifield. Closes: #931433.
-  - Do not raise a zip bomb alert for a misplaced central directory.
-    Reported by Peter Green. Closes: #932404.
+  - Detect and reject a zip bomb using overlapped entries. Closes: #931433.
+    Bug discovered by David Fifield. For reference, this is CVE-2019-13232.
 
- -- Santiago Vila <sanvila@debian.org>  Tue, 30 Jul 2019 22:26:10 +0200
+ -- Santiago Vila <sanvila@debian.org>  Thu, 11 Jul 2019 18:03:34 +0200
 
 unzip (6.0-23) unstable; urgency=medium
 
