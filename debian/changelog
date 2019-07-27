@@ -1,3 +1,12 @@
+unzip (6.0-25) unstable; urgency=medium
+
+  * Apply one more patch by Mark Adler:
+  - Do not raise a zip bomb alert for a misplaced central directory.
+    This should allow Firefox to build again. Closes: #932404.
+    Reported by Peter Green. Hopefully CVE-2019-13232 is fixed now.
+
+ -- Santiago Vila <sanvila@debian.org>  Sat, 27 Jul 2019 18:01:36 +0200
+
 unzip (6.0-24) unstable; urgency=medium
 
   * Apply two patches by Mark Adler:

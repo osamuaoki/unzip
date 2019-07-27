@@ -21,3 +21,4 @@
 21-fix-warning-messages-on-big-files.patch
 22-cve-2019-13232-fix-bug-in-undefer-input.patch
 23-cve-2019-13232-zip-bomb-with-overlapped-entries.patch
+24-cve-2019-13232-do-not-raise-alert-for-misplaced-central-directory.patch
