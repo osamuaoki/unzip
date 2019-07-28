@@ -1,3 +1,14 @@
+unzip (6.0-16+deb8u5) jessie-security; urgency=high
+
+  * Non-maintainer upload by the LTS team.
+  * There is a zip-like file in the Firefox distribution, omni.ja, which is a
+    zip container with the central directory placed at the start of the file
+    instead of after the local entries as required by the zip standard. This
+    update now permits such containers to not raise a zip bomb alert, where in
+    fact there are no overlaps. (Closes: #932404)
+
+ -- Markus Koschany <apo@debian.org>  Sun, 28 Jul 2019 16:07:29 +0200
+
 unzip (6.0-16+deb8u4) jessie-security; urgency=high
 
   * Non-maintainer upload by the LTS team.

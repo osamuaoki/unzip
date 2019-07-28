@@ -16,3 +16,4 @@
 18-cve-2014-9913-unzip-buffer-overflow
 19-cve-2016-9844-zipinfo-buffer-overflow
 CVE-2019-13232.patch
+CVE-2019-13232_part2.patch
