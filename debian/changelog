@@ -1,3 +1,15 @@
+unzip (6.0-21+deb9u2) stretch; urgency=medium
+
+  * Fix incorrect parsing of 64-bit values in fileio.c. Closes: #929502.
+  * Apply three patches by Mark Adler to fix CVE-2019-13232.
+  - Fix bug in undefer_input() that misplaced the input state.
+  - Detect and reject a zip bomb using overlapped entries.
+    Bug discovered by David Fifield. Closes: #931433.
+  - Do not raise a zip bomb alert for a misplaced central directory.
+    Reported by Peter Green. Closes: #932404.
+
+ -- Santiago Vila <sanvila@debian.org>  Mon, 05 Aug 2019 18:10:06 +0200
+
 unzip (6.0-21+deb9u1) stretch; urgency=medium
 
   * Fix buffer overflow in password protected ZIP archives. Closes: #889838.
