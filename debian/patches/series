@@ -17,3 +17,5 @@
 19-cve-2016-9844-zipinfo-buffer-overflow
 CVE-2019-13232.patch
 CVE-2019-13232_part2.patch
+
+CVE-2018-1000035.patch

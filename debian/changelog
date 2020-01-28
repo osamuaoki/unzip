@@ -1,3 +1,12 @@
+unzip (6.0-16+deb8u6) jessie-security; urgency=high
+
+  * Non-maintainer upload by the LTS team.
+  * CVE-2018-1000035
+    Fix buffer overflow in password protected ZIP archives.
+    Patch borrowed from SUSE.
+ 
+ -- Thorsten Alteholz <debian@alteholz.de>  Tue, 28 Jan 2020 19:03:02 +0100
+
 unzip (6.0-16+deb8u5) jessie-security; urgency=high
 
   * Non-maintainer upload by the LTS team.
