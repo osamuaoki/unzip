@@ -1,3 +1,11 @@
+unzip (6.0-23+deb10u2) buster; urgency=medium
+
+  * Two more patches from Mark Adler for CVE-2019-13232. Closes: #963996.
+  - Fix bug in UZbunzip2() that incorrectly updated G.incnt.
+  - Fix bug in UZinflate() that incorrectly updated G.incnt.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 10 Jan 2021 16:12:00 +0100
+
 unzip (6.0-23+deb10u1) buster; urgency=medium
 
   * Apply three patches by Mark Adler to fix CVE-2019-13232.
