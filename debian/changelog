@@ -1,3 +1,14 @@
+unzip (6.0-26) unstable; urgency=medium
+
+  * Two more patches from Mark Adler for CVE-2019-13232. Closes: #963996.
+  - Fix bug in UZbunzip2() that incorrectly updated G.incnt.
+  - Fix bug in UZinflate() that incorrectly updated G.incnt.
+  * Avoid weird zipgrep errors when no members are present.
+    Thanks to Kevin Locke. Closes: #972233.
+  * Update dependency on debhelper.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 10 Jan 2021 15:34:00 +0100
+
 unzip (6.0-25) unstable; urgency=medium
 
   * Apply one more patch by Mark Adler:

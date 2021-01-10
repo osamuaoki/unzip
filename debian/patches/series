@@ -22,3 +22,6 @@
 22-cve-2019-13232-fix-bug-in-undefer-input.patch
 23-cve-2019-13232-zip-bomb-with-overlapped-entries.patch
 24-cve-2019-13232-do-not-raise-alert-for-misplaced-central-directory.patch
+25-cve-2019-13232-fix-bug-in-uzbunzip2.patch
+26-cve-2019-13232-fix-bug-in-uzinflate.patch
+27-zipgrep-avoid-test-errors.patch
