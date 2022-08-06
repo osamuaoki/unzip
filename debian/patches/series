@@ -25,3 +25,4 @@
 25-cve-2019-13232-fix-bug-in-uzbunzip2.patch
 26-cve-2019-13232-fix-bug-in-uzinflate.patch
 27-zipgrep-avoid-test-errors.patch
+28-cve-2022-0529-and-cve-2022-0530.patch

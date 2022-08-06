@@ -1,3 +1,12 @@
+unzip (6.0-26+deb11u1) bullseye-security; urgency=medium
+
+  * Apply upstream patch for CVE-2022-0529 and CVE-2022-0530.
+  - Fix null pointer dereference on invalid UTF-8 input.
+  - Fix wide string conversion in process.c.
+    Closes: #1010355.
+
+ -- Santiago Vila <sanvila@debian.org>  Sun, 07 Aug 2022 01:45:00 +0200
+
 unzip (6.0-26) unstable; urgency=medium
 
   * Two more patches from Mark Adler for CVE-2019-13232. Closes: #963996.
