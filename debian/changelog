@@ -1,3 +1,11 @@
+unzip (6.0-23+deb10u3) buster-security; urgency=medium
+
+  * Non-maintainer upload by the LTS Team.
+  * CVE-2022-0530: segmentation fault on invalid input.
+  * CVE-2022-0529: heap buffer overwrite. Closes: #1010355.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 22 Sep 2022 18:25:09 +0200
+
 unzip (6.0-23+deb10u2) buster; urgency=medium
 
   * Two more patches from Mark Adler for CVE-2019-13232. Closes: #963996.

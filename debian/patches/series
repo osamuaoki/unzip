@@ -24,3 +24,4 @@
 24-cve-2019-13232-do-not-raise-alert-for-misplaced-central-directory.patch
 25-cve-2019-13232-fix-bug-in-uzbunzip2.patch
 26-cve-2019-13232-fix-bug-in-uzinflate.patch
+28-cve-2022-0529-and-cve-2022-0530.patch
