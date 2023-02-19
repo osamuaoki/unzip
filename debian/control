@@ -2,14 +2,14 @@ Source: unzip
 Section: utils
 Priority: optional
 Maintainer: Santiago Vila <sanvila@debian.org>
-Standards-Version: 4.5.1
+Standards-Version: 4.6.2
 Build-Depends: debhelper-compat (= 13), libbz2-dev
-Homepage: http://www.info-zip.org/UnZip.html
+Homepage: https://infozip.sourceforge.net/UnZip.html
 Rules-Requires-Root: no
 
 Package: unzip
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Suggests: zip
 Multi-Arch: foreign
 Description: De-archiver for .zip files
