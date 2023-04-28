@@ -1,18 +1,22 @@
 /* Low-level Amiga routines shared between Zip and UnZip.
  *
  * Contains:  FileDate()
- *            tzset()           [replaces bad C library versions]
+ *            locale_TZ()
+ *            getenv()          [Aztec C only; replaces bad C library versions]
+ *            setenv()          [ditto]
+ *            tzset()           [ditto]
  *            gmtime()          [ditto]
  *            localtime()       [ditto]
  *            time()            [ditto]
+ *            mkgmtime()
  *            sendpkt()
  *            Agetch()
  *
- * The first two are used by all Info-Zip programs except fUnZip.  The last two
- * are used by all except the non-CRYPT version of fUnZip.  Probably some of
- * the stuff in here is unused by ZipNote and ZipSplit too...  sendpkt() is
- * used by Agetch() and FileDate(), and by windowheight() in amiga/amiga.c
- * (UnZip).
+ * The first five are used by all Info-ZIP programs except fUnZip.
+ * The last two are used by all except the non-CRYPT version of fUnZip.
+ * Probably some of the stuff in here is unused by ZipNote and ZipSplit too...
+ * sendpkt() is used by Agetch() and FileDate(), and by windowheight() in
+ * amiga/amiga.c (UnZip).  time() is used only by Zip.
  */
 
 
@@ -32,7 +36,7 @@
  * 11 Nov 95, Paul Kienitz, added Agetch() for crypt password input and
  *            UnZip's "More" prompt -- simplifies crypt.h and avoids
  *            use of library code redundant with sendpkt().  Made it
- *            available to FUnZip, which does not use FileDate().
+ *            available to fUnZip, which does not use FileDate().
  * 22 Nov 95, Paul Kienitz, created a new tzset() that gets the current
  *            timezone from the Locale preferences.  These exist only under
  *            AmigaDOS 2.1 and up, but it is probably correctly set on more
@@ -57,6 +61,20 @@
  * 23 Apr 96, Chr. Spieler, deactivated time() replacement for UnZip stuff.
  *            Currently, the UnZip sources do not make use of time() (and do
  *            not supply the working mktime() replacement, either!).
+ * 29 Apr 96, Paul Kienitz, created a replacement getenv() out of code that
+ *            was previously embedded in tzset(), for reliable global test
+ *            of whether TZ is set or not.
+ * 19 Jun 96, Haidinger Walter, re-adapted for current SAS/C compiler.
+ *  7 Jul 96, Paul Kienitz, smoothed together compiler-related changes.
+ *  4 Feb 97, Haidinger Walter, added set_TZ() for SAS/C.
+ * 23 Apr 97, Paul Kienitz, corrected Unix->Amiga DST error by adding
+ *            mkgmtime() so localtime() could be used.
+ * 28 Apr 97, Christian Spieler, deactivated mkgmtime() definition for ZIP;
+ *            the Zip sources supply this function as part of util.c.
+ * 24 May 97, Haidinger Walter, added time_lib support for SAS/C and moved
+ *            set_TZ() to time_lib.c
+ * 12 Jul 97, Paul Kienitz, adapted time_lib stuff for Aztec.
+ * 26 Jul 97, Chr. Spieler, old mkgmtime() fixed (ydays[] def, sign vs unsign).
  */
 
 #include <ctype.h>
@@ -66,15 +84,15 @@
 #include <stdio.h>
 
 #include <exec/types.h>
+#include <exec/execbase.h>
 #include <exec/memory.h>
-#include <exec/libraries.h>
-#include <libraries/dos.h>
-#include <libraries/dosextens.h>
-#include <clib/exec_protos.h>
-#include <clib/dos_protos.h>
-#include <clib/locale_protos.h>
 
 #ifdef AZTEC_C
+#  include <libraries/dos.h>
+#  include <libraries/dosextens.h>
+#  include <clib/exec_protos.h>
+#  include <clib/dos_protos.h>
+#  include <clib/locale_protos.h>
 #  include <pragmas/exec_lib.h>
 #  include <pragmas/dos_lib.h>
 #  include <pragmas/locale_lib.h>
@@ -82,22 +100,96 @@
 #  define EOSERR EIO
 #endif
 
-#if defined(LATTICE) || defined(__SASC)
-#  include <proto/exec.h>
+#ifdef __SASC
+#  include <stdlib.h>
+#  if (defined(_M68020) && (!defined(__USE_SYSBASE)))
+                            /* on 68020 or higher processors it is faster   */
+#    define __USE_SYSBASE   /* to use the pragma libcall instead of syscall */
+#  endif                    /* to access functions of the exec.library      */
+#  include <proto/exec.h>   /* see SAS/C manual:part 2,chapter 2,pages 6-7  */
 #  include <proto/dos.h>
+#  include <proto/locale.h>
+#  ifdef DEBUG
+#     include <sprof.h>
+#  endif
+#  ifdef MWDEBUG
+#    include <stdio.h>      /* include both before memwatch.h again just */
+#    include <stdlib.h>     /* to be safe */
+#    include "memwatch.h"
+#if 0                       /* remember_alloc currently unavailable */
+#    ifdef getenv
+#      undef getenv         /* remove previously preprocessor symbol */
+#    endif
+#    define getenv(name)    ((char *)remember_alloc((zvoid *)MWGetEnv(name, __FILE__, __LINE__)))
 #endif
+#  endif /* MWDEBUG */
+   /* define USE_TIME_LIB if replacement functions of time_lib are available */
+   /* replaced are: tzset(), time(), localtime() and gmtime()                */
+#endif /* __SASC */
 
-#define OF(x) x               /* so crypt.h prototypes compile okay */
+#ifndef OF
+#  define OF(x) x             /* so crypt.h prototypes compile okay */
+#endif
 #if defined(ZIP) || defined(FUNZIP)
+   void zipwarn  OF((char *, char *));   /* add zipwarn prototype from zip.h */
 #  define near                /* likewise */
    typedef unsigned long ulg; /* likewise */
    typedef size_t extent;     /* likewise */
    typedef void zvoid;        /* likewise */
 #endif
-#include "crypt.h"            /* just so we can tell if CRYPT is defined */
+#include "crypt.h"            /* just so we can tell if CRYPT is supported */
+
+int zone_is_set = FALSE;      /* set by tzset() */
 
 
 #ifndef FUNZIP
+
+#  ifndef SUCCESS
+#    define SUCCESS (-1L)
+#    define FAILURE 0L
+#  endif
+
+#  define ReqVers 36L  /* required library version for SetFileDate() */
+#  define ENVSIZE 100  /* max space allowed for an environment var   */
+
+extern struct ExecBase *SysBase;
+
+#ifdef AZTEC_C                      /* should be pretty safe for reentrancy */
+   long timezone = 0;               /* already declared SAS/C external */
+   int daylight = 0;                /* likewise */
+#endif
+
+/* prototypes */
+#ifdef AZTEC_C
+  char *getenv(const char *var);
+  int setenv(const char *var, const char *value, int overwrite);
+#endif
+LONG FileDate (char *filename, time_t u[]);
+LONG sendpkt(struct MsgPort *pid, LONG action, LONG *args, LONG nargs);
+int Agetch(void);
+
+#if (!defined(ZIP) || !defined(NO_MKTIME)) && !defined(USE_TIME_LIB)
+  time_t mkgmtime(struct tm *tm);          /* use mkgmtime() from here */
+#else
+  extern time_t mkgmtime(struct tm *tm);   /* from mktime.c or time_lib.c */
+#endif
+
+/* prototypes for time replacement functions */
+#ifndef USE_TIME_LIB
+  void tzset(void);
+  int locale_TZ(void);
+  struct tm *gmtime(const time_t *when);
+  struct tm *localtime(const time_t *when);
+  extern void set_TZ(long time_zone, int day_light);  /* in time_lib.c */
+#  ifdef ZIP
+     time_t time(time_t *tp);
+#  endif
+#endif /* !USE_TIME_LIB */
+#if 0    /* not used YET */
+  extern zvoid *remember_alloc   OF((zvoid *memptr));
+#endif
+
+/* =============================================================== */
 
 /***********************/
 /* Function filedate() */
@@ -126,23 +218,6 @@
  *            date modified.
  */
 
-#  ifndef SUCCESS
-#    define SUCCESS (-1L)
-#    define FAILURE 0L
-#  endif
-
-#  define ReqVers 36L  /* required library version for SetFileDate() */
-#  define TZSIZE  40   /* max space allowed for a timezone string    */
-
-extern struct Library *SysBase;
-
-long timezone = 0;     /* should be pretty safe for reentrancy */
-int daylight = 0;
-
-LONG FileDate (char *filename, time_t u[]);
-void tzset(void);
-
-/* =============================================================== */
 
 LONG FileDate(filename, u)
     char *filename;
@@ -160,8 +235,9 @@ LONG FileDate(filename, u)
     struct DateStamp pDate;
     time_t mtime;
 
-    tzset();
-    mtime = u[0] - timezone;
+    /* tzset(); */
+    /* mtime = u[0] - timezone; */
+    mtime = mkgmtime(localtime(&u[0]));
 
 /* magic number = 2922 = 8 years + 2 leaps between 1970 - 1978 */
     pDate.ds_Days = (mtime / 86400L) - 2922L;
@@ -170,7 +246,8 @@ LONG FileDate(filename, u)
     mtime = mtime % 60L;
     pDate.ds_Tick = mtime * TICKS_PER_SECOND;
 
-    if (SysBase->lib_Version >= ReqVers) {
+    if (SysBase->LibNode.lib_Version >= ReqVers)
+    {
         return (SetFileDate(filename,&pDate));  /* native routine at 2.0+ */
     }
     else  /* !(SysBase->lib_Version >=ReqVers) */
@@ -227,35 +304,172 @@ LONG FileDate(filename, u)
 } /* FileDate() */
 
 
-void tzset(void)         /* check Locale and TZ -- the environment overrides */
+#ifdef AZTEC_C    /* SAS/C uses library getenv() & putenv() */
+char *getenv(const char *var)         /* not reentrant! */
+{
+    static char space[ENVSIZE];
+    struct Process *me = (void *) FindTask(NULL);
+    void *old_window = me->pr_WindowPtr;
+    char *ret = NULL;
+
+    me->pr_WindowPtr = (void *) -1;   /* suppress any "Please insert" popups */
+    if (SysBase->LibNode.lib_Version >= ReqVers) {
+        if (GetVar((char *) var, space, ENVSIZE - 1, /* GVF_GLOBAL_ONLY */ 0) > 0)
+            ret = space;
+    } else {                    /* early AmigaDOS, get env var the crude way */
+        BPTR hand, foot, spine;
+        int z = 0;
+        if (foot = Lock("ENV:", ACCESS_READ)) {
+            spine = CurrentDir(foot);
+            if (hand = Open((char *) var, MODE_OLDFILE)) {
+                z = Read(hand, space, ENVSIZE - 1);
+                Close(hand);
+            }
+            UnLock(CurrentDir(spine));
+        }
+        if (z > 0) {
+            space[z] = '\0';
+            ret = space;
+        }
+    }
+    me->pr_WindowPtr = old_window;
+    return ret;
+}
+
+int setenv(const char *var, const char *value, int overwrite)
+{
+    struct Process *me = (void *) FindTask(NULL);
+    void *old_window = me->pr_WindowPtr;
+    int ret = -1;
+
+    me->pr_WindowPtr = (void *) -1;   /* suppress any "Please insert" popups */
+    if (SysBase->LibNode.lib_Version >= ReqVers)
+        ret = !SetVar((char *) var, (char *) value, -1, GVF_GLOBAL_ONLY | LV_VAR);
+    else {
+        BPTR hand, foot, spine;
+        int len = value ? strlen(value) : 0;
+        if (foot = Lock("ENV:", ACCESS_READ)) {
+            spine = CurrentDir(foot);
+            if (len) {
+                if (hand = Open((char *) var, MODE_NEWFILE)) {
+                    ret = Write(hand, (char *) value, len + 1) >= len;
+                    Close(hand);
+                }
+            } else
+                ret = DeleteFile((char *) var);
+            UnLock(CurrentDir(spine));
+        }
+    }
+    me->pr_WindowPtr = old_window;
+    return ret;
+}
+#endif /* AZTEC_C */
+
+
+#if (!defined(ZIP) || !defined(NO_MKTIME)) && !defined(USE_TIME_LIB)
+/* this mkgmtime() code is a simplified version taken from Zip's mktime.c */
+
+/* Return the equivalent in seconds past 12:00:00 a.m. Jan 1, 1970 GMT
+   of the Greenwich Mean time and date in the exploded time structure `tm',
+   and set `tm->tm_yday' and `tm->tm_wday', but not `tm->tm_isdst'.
+   Return -1 if any of the other fields in `tm' has an invalid value. */
+
+/* Nonzero if `y' is a leap year, else zero. */
+#define leap(y) (((y) % 4 == 0 && (y) % 100 != 0) || (y) % 400 == 0)
+
+/* Number of leap years from 1970 to `y' (not including `y' itself). */
+#define nleap(y) (((y) - 1969) / 4 - ((y) - 1901) / 100 + ((y) - 1601) / 400)
+
+/* Accumulated number of days from 01-Jan up to start of current month. */
+#ifdef ZIP
+static const unsigned short ydays[] =
+{  0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 };
+#else
+extern const unsigned short ydays[];  /* in unzip's fileio.c */
+#endif
+
+
+time_t mkgmtime(struct tm *tm)
+{
+  int years, months, days, hours, minutes, seconds;
+
+  years = tm->tm_year + 1900;   /* year - 1900 -> year */
+  months = tm->tm_mon;          /* 0..11 */
+  days = tm->tm_mday - 1;       /* 1..31 -> 0..30 */
+  hours = tm->tm_hour;          /* 0..23 */
+  minutes = tm->tm_min;         /* 0..59 */
+  seconds = tm->tm_sec;         /* 0..61 in ANSI C. */
+
+  if (years < 1970
+      || months < 0 || months > 11
+      || days < 0
+      || days >= (months == 11? 365 : ydays[months + 1]) - ydays[months]
+           + (months == 1 && leap(years))
+      || hours < 0 || hours > 23
+      || minutes < 0 || minutes > 59
+      || seconds < 0 || seconds > 61)
+  return -1;
+
+  /* Set `days' to the number of days into the year. */
+  days += ydays[months] + (months > 1 && leap(years));
+  tm->tm_yday = days;
+
+  /* Now set `days' to the number of days since Jan 1, 1970. */
+  days = (unsigned)days + 365 * (unsigned)(years - 1970) +
+         (unsigned)(nleap(years));
+  tm->tm_wday = ((unsigned)days + 4) % 7; /* Jan 1, 1970 was Thursday. */
+/*  tm->tm_isdst = 0; */
+
+  return (time_t)(86400L * (unsigned long)(unsigned)days +
+                  3600L * (unsigned long)hours +
+                  (unsigned long)(60 * minutes + seconds));
+}
+
+#endif /* (!ZIP || !NO_MKTIME) && !USE_TIME_LIB */
+
+#ifndef USE_TIME_LIB
+
+/* set timezone and daylight to settings found in locale.library */
+int locale_TZ(void)
 {
     struct Library *LocaleBase;
     struct Locale *ll;
-    char TZstring[TZSIZE], *p;
     struct Process *me = (void *) FindTask(NULL);
     void *old_window = me->pr_WindowPtr;
     BPTR eh;
     int z, valid = FALSE;
-    static zone_is_set = FALSE;         /* should be okayish with reentrancy */
+    /* read timezone from locale.library if TZ envvar missing */
+    me->pr_WindowPtr = (void *) -1;   /* suppress any "Please insert" popups */
+    if (LocaleBase = OpenLibrary("locale.library", 0)) {
+        if (ll = OpenLocale(NULL)) {
+            z = ll->loc_GMTOffset;
+            if (z == -300) {
+                if (eh = Lock("ENV:sys/locale.prefs", ACCESS_READ))
+                    UnLock(eh);
+                else
+                    z = 300; /* bug: locale not initialized, default is bogus! */
+            } else
+                zone_is_set = TRUE;
+            timezone = z * 60;
+            daylight = (z >= 4*60 && z <= 9*60);    /* apply in the Americas */
+            valid = TRUE;
+            CloseLocale(ll);
+        }
+        CloseLibrary(LocaleBase);
+    }
+    me->pr_WindowPtr = old_window;
+    return valid;
+}
 
+void tzset(void) {
+    char *p,*TZstring;
+    int z,valid = FALSE;
     if (zone_is_set)
         return;
-    timezone = 5 * 60;                                            /* default */
-    me->pr_WindowPtr = (void *) -1;   /* suppress any "Please insert" popups */
-    if (SysBase->lib_Version >= ReqVers) {
-        if (GetVar("TZ", TZstring, TZSIZE - 1, /* GVF_GLOBAL_ONLY */ 0) <= 0)
-            TZstring[0] = 0;
-    } else {                    /* early AmigaDOS, get env var the crude way */
-        z = 0;
-        if (eh = Open("ENV:TZ", MODE_OLDFILE)) {
-            z = Read(eh, TZstring, TZSIZE - 1);
-            Close(eh);
-            if (z < 0)
-                z = 0;
-        }
-        TZstring[z] = '\0';
-    }
-    if (TZstring[0]) {
+    timezone = 0;       /* default is GMT0 which means no offsets */
+    daylight = 0;       /* from local system time                 */
+    TZstring = getenv("TZ");              /* read TZ envvar */
+    if (TZstring && TZstring[0]) {        /* TZ exists and has contents? */
         z = 3600;
         for (p = TZstring; *p && !isdigit(*p) && *p != '-'; p++) ;
         if (*p == '-')
@@ -272,26 +486,18 @@ void tzset(void)         /* check Locale and TZ -- the environment overrides */
         if (valid)
             zone_is_set = TRUE, daylight = !!*p;   /* a DST name part exists */
     }
-    if (!valid && (LocaleBase = OpenLibrary("locale.library", 0))) {
-        if (ll = OpenLocale(NULL)) {
-            z = ll->loc_GMTOffset;
-            if (z == -5) {
-                if (eh = Lock("ENV:sys/locale.prefs", ACCESS_READ))
-                    UnLock(eh);
-                else
-                    z = 5; /* bug: locale not initialized, default is bogus! */
-            } else
-                zone_is_set = TRUE;
-            timezone = z * 60;
-            daylight = (z >= 4*60 && z <= 9*60);    /* apply in the Americas */
-            CloseLocale(ll);
-        }
-        CloseLibrary(LocaleBase);
-    }
-    me->pr_WindowPtr = old_window;
+    if (!valid)
+        locale_TZ();               /* read locale.library */
+#ifdef __SASC
+    /* Some SAS/C library functions, e.g. stat(), call library  */
+    /* __tzset() themselves. So envvar TZ *must* exist in order */
+    /* to get the right offset from GMT.                        */
+    set_TZ(timezone, daylight);
+#endif /* __SASC */
 }
 
 
+#  ifdef AZTEC_C    /* SAS/C uses library gmtime(), localtime(), time() */
 struct tm *gmtime(const time_t *when)
 {
     static struct tm tbuf;   /* this function is intrinsically non-reentrant */
@@ -315,12 +521,9 @@ struct tm *gmtime(const time_t *when)
     tbuf.tm_sec = secs % 60;
     tbuf.tm_min = (secs / 60) % 60;
     tbuf.tm_hour = secs / 3600;
-#ifdef AZTEC_C
-    tbuf.tm_hsec = 0;
-#endif
+    tbuf.tm_hsec = 0;                   /* this field exists for Aztec only */
     return &tbuf;
 }
-
 
 struct tm *localtime(const time_t *when)
 {
@@ -357,7 +560,7 @@ struct tm *localtime(const time_t *when)
 }
 
 
-#ifdef ZIP
+#    ifdef ZIP
 time_t time(time_t *tp)
 {
     time_t t;
@@ -370,12 +573,14 @@ time_t time(time_t *tp)
     if (tp) *tp = t;
     return t;
 }
-#endif /* ZIP */
+#    endif /* ZIP */
+#  endif /* AZTEC_C */
+#endif /* !USE_TIME_LIB */
 
 #endif /* !FUNZIP */
 
 
-#if defined(CRYPT) || !defined(FUNZIP)
+#if CRYPT || !defined(FUNZIP)
 
 /*  sendpkt.c
  *  by A. Finkel, P. Lindsay, C. Sheppner
@@ -389,6 +594,8 @@ time_t time(time_t *tp)
 #include <proto/exec.h>
 #include <proto/dos.h>
 */
+
+LONG sendpkt(struct MsgPort *pid, LONG action, LONG *args, LONG nargs);
 
 LONG sendpkt(pid,action,args,nargs)
 struct MsgPort *pid;           /* process identifier (handler message port) */
@@ -440,7 +647,7 @@ LONG action,                   /* packet type (desired action)              */
 #endif /* CRYPT || !FUNZIP */
 
 
-#if defined(CRYPT) || (defined(UNZIP) && !defined(FUNZIP))
+#if CRYPT || (defined(UNZIP) && !defined(FUNZIP))
 
 /* Agetch() reads one raw keystroke -- uses sendpkt() */
 

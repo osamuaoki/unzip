@@ -87,7 +87,9 @@ typedef struct {
 
 #ifndef NO_UNZIPH_STUFF
 #  include <time.h>
-#  define DATE_FORMAT DF_DMY
+#  ifndef DATE_FORMAT
+#    define DATE_FORMAT DF_DMY
+#  endif
 #  define lenEOL 1
 #  define PutNativeEOL  *q++ = native(LF);
 #  define USE_STRM_INPUT
@@ -95,11 +97,17 @@ typedef struct {
 #  define PIPE_ERROR (errno == 9999)    /* always false */
 #  define isatty(x) (TRUE)   /* used in funzip.c to find if stdin redirected:
      should find a better way, now just work as if stdin never redirected */
+#  define USE_EF_UT_TIME
+#  if (!defined(NOTIMESTAMP) && !defined(TIMESTAMP))
+#    define TIMESTAMP
+#  endif
+#  define localtime riscos_localtime
+#  define gmtime riscos_gmtime
 #endif /* !NO_UNZIPH_STUFF */
 
 #define _raw_getc() SWI_OS_ReadC()
 
-extern char *exts2swap; /* Extesions to swap */
+extern char *exts2swap; /* Extensions to swap */
 
 int stat(char *filename,struct stat *res);
 DIR *opendir(char *dirname);
@@ -114,5 +122,7 @@ int checkext(char *suff);
 void swapext(char *name, char *exptr);
 void remove_prefix(void);
 void set_prefix(void);
+struct tm *riscos_localtime(const time_t *timer);
+struct tm *riscos_gmtime(const time_t *timer);
 
 #endif

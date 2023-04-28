@@ -33,6 +33,10 @@ int mapattr(__G)        /* just like Unix except no umask() */
     switch (G.pInfo->hostnum) {
         case UNIX_:
         case VMS_:
+        case ACORN_:
+        case ATARI_:
+        case BEOS_:
+        case QDOS_:
             G.pInfo->file_attr = (unsigned)(tmp >> 16);
             break;
         case AMIGA_:
@@ -43,7 +47,6 @@ int mapattr(__G)        /* just like Unix except no umask() */
         case FS_HPFS_:
         case FS_NTFS_:
         case MAC_:
-        case ATARI_:
         case TOPS20_:
         default:
             tmp = !(tmp & 1) << 1;   /* read-only bit --> write perms bits */
@@ -83,15 +86,16 @@ void close_outfile(__G)
     int yr, mo, dy, hh, mm, ss;
     char temp[100];
     unsigned tad;
-#ifdef USE_EF_UX_TIME
-    ztimbuf z_utime;
+#ifdef USE_EF_UT_TIME
+    iztimes z_utime;
 
 
     if (G.extra_field &&
-        ef_scan_for_izux(G.extra_field, G.crec.extra_field_length,
-                         &z_utime, NULL) > 0)
+        (ef_scan_for_izux(G.extra_field, G.lrec.extra_field_length, 0,
+                          G.lrec.last_mod_file_date, &z_utime, NULL)
+         & EB_UT_FL_MTIME))
     {
-        struct tm *t = localtime(&(z_utime.modtime));
+        struct tm *t = localtime(&(z_utime.mtime));
 
         yr = t->tm_year + 1900;
         mo = t->tm_mon;
@@ -112,7 +116,7 @@ void close_outfile(__G)
         mm = (G.lrec.last_mod_file_time >> 5) & 0x3f;
         ss = (G.lrec.last_mod_file_time & 0x1f) * 2;
     }
-#else /* !USE_EF_UX_TIME */
+#else /* !USE_EF_UT_TIME */
 
     /* dissect the date */
     yr = ((G.lrec.last_mod_file_date >> 9) & 0x7f) + (1980 - YRBASE);
@@ -123,7 +127,7 @@ void close_outfile(__G)
     hh = (G.lrec.last_mod_file_time >> 11) & 0x1f;
     mm = (G.lrec.last_mod_file_time >> 5) & 0x3f;
     ss = (G.lrec.last_mod_file_time & 0x1f) * 2;
-#endif /* ?USE_EF_UX_TIME */
+#endif /* ?USE_EF_UT_TIME */
 
     sprintf(temp, "%02d/%02d/%02d %02d:%02d:%02d", mo, dy, yr, hh, mm, ss);
 
@@ -146,7 +150,7 @@ void close_outfile(__G)
     ablock[2] = (int) tblock;
     ablock[3] = 3;
     if (!jsys(SFTAD, ablock))
-        Info(slide, 1,((char *)slide, "error:  can't set the time for %s\n",
+        Info(slide, 1,((char *)slide, "error:  cannot set the time for %s\n",
           G.filename));
 
     fclose(G.outfile);

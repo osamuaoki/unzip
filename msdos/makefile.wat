@@ -1,5 +1,5 @@
 # WMAKE makefile for 16 bit MSDOS or 32 bit DOS extender (PMODE/W or DOS/4GW)
-# using Watcom C/C++ v10.5, by Paul Kienitz, last revised 12 Mar 96.  Makes
+# using Watcom C/C++ v11.0+, by Paul Kienitz, last revised 29 Sep 97.  Makes
 # UnZip.exe, fUnZip.exe, and UnZipSFX.exe.
 #
 # Invoke from UnZip source dir with "WMAKE -F MSDOS\MAKEFILE.WAT [targets]".
@@ -10,6 +10,7 @@
 #   PMODE/W is recommended over DOS/4GW for best performance.
 # To build with debug info use "WMAKE DEBUG=1 ..."
 # To build with no assembly modules use "WMAKE NOASM=1 ..."
+# To support unshrinking and unreducing use "WMAKE LAWSUIT=1 ..."
 #
 # Other options to be fed to the compiler can be specified in an environment
 # variable called LOCAL_UNZIP.
@@ -32,10 +33,25 @@ variation = $(%LOCAL_UNZIP)
 PM = 1      # both protected mode formats use the same object files
 !endif
 
-!ifdef PM
-O = ob32d\  # comment here so backslash won't continue the line
+!ifdef DEBUG
+!  ifdef PM
+O = od32d\  # comment here so backslash won't continue the line
+!  else
+O = od16d\  # ditto
+!  endif
 !else
+!  ifdef PM
+O = ob32d\  # ditto
+!  else
 O = ob16d\  # ditto
+!  endif
+!endif
+
+!ifdef LAWSUIT
+cvars = $+$(cvars)$- -DUSE_SMITH_CODE -DUSE_UNSHRINK
+avars = $+$(avars)$- -DUSE_SMITH_CODE -DUSE_UNSHRINK
+# "$+$(foo)$-" means expand foo as it has been defined up to now; normally,
+# this Make defers inner expansion until the outer macro is expanded.
 !endif
 
 # The assembly hot-spot code in crc_i[3]86.asm is optional.  This section
@@ -46,8 +62,6 @@ crcob = $(O)crc32.obj
 crcox = $(O)crc32.obx
 !else   # !NOASM
 cvars = $+$(cvars)$- -DASM_CRC
-# "$+$(foo)$-" means expand foo as it has been defined up to now; normally,
-# this Make defers inner expansion until the outer macro is expanded.
 !  ifdef PM
 crcob = $(O)crc_i386.obj
 crcox = $(O)crc_i386.obx
@@ -86,8 +100,8 @@ asm    = wasm
 
 !ifdef PM
 cc     = wcc386
-# Use Pentium timings, flat memory, static strings in code, max strictness:
-cflags = -bt=DOS -mf -5r -zt -zq -wx -we
+# Use Pentium Pro timings, flat memory, static strings in code, max strictness:
+cflags = -bt=DOS -mf -6r -zt -zq -wx
 aflags = -bt=DOS -mf -3 -zq
 cflagx = $(cflags)
 aflagx = $(aflags)
@@ -105,10 +119,10 @@ lflags = format os2 le op osname='PMODE/W' op stub=pmodew.exe $(defaultlibs)
 
 cc     = wcc
 # Use plain 8086 code, medium memory, static strings in code, max strictness:
-cflags = -bt=DOS -mm -0 -zt -zq -wx -we
+cflags = -bt=DOS -mm -0 -zt -zq -wx
 aflags = -bt=DOS -mm -0 -zq
 # for UnZipSFX and fUnZip, use the small memory model:
-cflagx = -bt=DOS -ms -0 -zt -zq -wx -we
+cflagx = -bt=DOS -ms -0 -zt -zq -wx
 aflagx = -bt=DOS -ms -0 -zq
 lflags = sys DOS
 !endif  # !PM
@@ -125,21 +139,21 @@ cdebux = -od -d2
 ldebug = d w all op symf
 !else
 !  ifdef PM
-cdebug = -s -oeilrt -z4    # use longword data alignment in 32 bit version
-# note: -ol+ does not help.  -oa helps slightly but might be dangerous.
+cdebug = -s -obhikl+rt -oe=100 -zp8
+# -oa helps slightly but might be dangerous.
 !  else
-cdebug = -s -oeilrt
+cdebug = -s -oehiklrt
 !  endif
-cdebux = -s -oeilrs
+cdebux = -s -obhiklrs
 ldebug = op el
 !endif
 
 # How to compile sources:
 .c.obx:
-	$(cc) $(cdebux) $(cflagx) $(cvars) -DSFX $< -fo=$@
+	$(cc) $(cdebux) $(cflagx) $(cvars) -DSFX $[@ -fo=$@
 
 .c.obj:
-	$(cc) $(cdebug) $(cflags) $(cvars) $< -fo=$@
+	$(cc) $(cdebug) $(cflags) $(cvars) $[@ -fo=$@
 
 # Here we go!  By default, make all targets, except no UnZipSFX for PMODE:
 !ifdef PM

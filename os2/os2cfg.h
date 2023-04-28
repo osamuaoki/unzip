@@ -100,6 +100,11 @@
 # endif
 #endif
 
+/* TIMESTAMP is now supported on OS/2, so enable it by default */
+#if (!defined(NOTIMESTAMP) && !defined(TIMESTAMP))
+#  define TIMESTAMP
+#endif
+
 #ifdef isupper
 #  undef isupper
 #endif
@@ -112,5 +117,16 @@
 #define isupper(x)   IsUpperNLS((unsigned char)(x))
 #define tolower(x)   ToLowerNLS((unsigned char)(x))
 #define USETHREADID
+
+/* handlers for OEM <--> ANSI string conversions */
+#ifndef _OS2_ISO_ANSI
+   /* use home_brewed conversion functions; internal charset is OEM */
+#  ifdef CRTL_CP_IS_ISO
+#    undef CRTL_CP_IS_ISO
+#  endif
+#  ifndef CRTL_CP_IS_OEM
+#    define CRTL_CP_IS_OEM
+#  endif
+#endif
 
 #endif /* !__os2cfg_h */
