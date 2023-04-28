@@ -1,3 +1,15 @@
+unzip (6.0-28.1) UNRELEASED; urgency=medium
+
+  * Merge i18n changes from Ubuntu 6.0-27ubuntu1 by Heinrich Schuchardt
+    <heinrich.schuchardt@canonical.com>.
+    - Add patch from archlinux which adds the -O option, allowing a charset
+      to be specified for the proper unzipping of non-Latin and non-Unicode
+      filenames.
+  * Change the binary package name to unzip-i18n to make package selection
+    easy and stable.
+
+ -- Osamu Aoki <osamu@debian.org>  Fri, 28 Apr 2023 14:45:36 +0900
+
 unzip (6.0-28) unstable; urgency=medium
 
   * Drop debian/source/lintian-overrides, obsolete since version 6.0-18.

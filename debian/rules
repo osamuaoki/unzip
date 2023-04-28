@@ -28,7 +28,7 @@ override_dh_auto_install:
 
 override_dh_strip:
 	dh_strip
-	cd debian/unzip/usr/bin && rm -f zipinfo && ln unzip zipinfo
+	cd debian/unzip-i18n/usr/bin && rm -f zipinfo && ln unzip zipinfo
 
 override_dh_compress:
 	dh_compress -XBUGS -XToDo

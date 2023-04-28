@@ -1,21 +1,27 @@
 Source: unzip
 Section: utils
 Priority: optional
-Maintainer: Santiago Vila <sanvila@debian.org>
+Maintainer: Osamu Aoki <osamu@debian.org>
+XSBC-Original-Maintainer: Santiago Vila <sanvila@debian.org>
 Standards-Version: 4.6.2
 Build-Depends: debhelper-compat (= 13), libbz2-dev
 Homepage: https://infozip.sourceforge.net/UnZip.html
 Rules-Requires-Root: no
 
-Package: unzip
+Package: unzip-i18n
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}
+Provides: unzip
+Conflicts: unzip
+Replaces: unzip
 Suggests: zip
 Multi-Arch: foreign
-Description: De-archiver for .zip files
+Description: De-archiver for .zip files with i18n supports
  InfoZIP's unzip program. With the exception of multi-volume archives
  (ie, .ZIP files that are split across several disks using PKZIP's /& option),
  this can handle any file produced either by PKZIP, or the corresponding
  InfoZIP zip program.
  .
  This version supports encryption.
+ .
+ This unzip-i18n supports file name encoding conversion with -O and -I options.
