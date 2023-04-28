@@ -1,10 +1,25 @@
-/* inflate.h for UnZip -- put in the public domain by Mark Adler
+/*
+  Copyright (c) 1990-2000 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
+/* inflate.h for UnZip -- by Mark Adler
    version c14f, 23 November 1995 */
 
 
-/* You can do whatever you like with this source file, though I would
-   prefer that if you modify it and redistribute it that you include
-   comments to that effect with your name and the date.  Thank you.
+/* Copyright history:
+   - Starting with UnZip 5.41 of 16-April-2000, this source file
+     is covered by the Info-Zip LICENSE cited above.
+   - Prior versions of this source file, found in UnZip source packages
+     up to UnZip 5.40, were put in the public domain.
+     The original copyright note by Mark Adler was:
+         "You can do whatever you like with this source file,
+         though I would prefer that if you modify it and
+         redistribute it that you include comments to that effect
+         with your name and the date.  Thank you."
 
    History:
    vers    date          who           what

@@ -1,3 +1,11 @@
+/*
+  Copyright (c) 1990-2001 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 /**********************************************************************
 *   REXXAPI.C                                                         *
 *                                                                     *
@@ -32,7 +40,7 @@
 
 #define UNZIP_INTERNAL
 #include "../unzip.h"
-#include "../version.h"
+#include "../unzvers.h"
 
 
 /*********************************************************************/
@@ -583,11 +591,11 @@ ULONG UZVer(CHAR *name, ULONG numargs, RXSTRING args[],
   if (numargs == 0 || (*args[0].strptr & 0x5f) != 'L')
     /* strcpy( retstr->strptr, UZ_VERNUM );    "5.13a BETA" */
     sprintf( retstr->strptr, "%d.%d%d%s", UZ_MAJORVER, UZ_MINORVER,
-      PATCHLEVEL, BETALEVEL );
+      UZ_PATCHLEVEL, UZ_BETALEVEL );
   else
     /* strcpy( retstr->strptr, UZ_VERSION );   UZ_VERNUM" of 26 Sep 94" */
     sprintf( retstr->strptr, "%d.%d%d%s of %s", UZ_MAJORVER, UZ_MINORVER,
-      PATCHLEVEL, BETALEVEL, VERSION_DATE );
+      UZ_PATCHLEVEL, UZ_BETALEVEL, UZ_VERSION_DATE );
   retstr->strlength = strlen(retstr->strptr);
   return VALID_ROUTINE;
 }
@@ -643,7 +651,7 @@ ULONG UZUnZip(CHAR *name, ULONG numargs, RXSTRING args[],
   return RexxReturn(__G__ 1,retstr);
 }
 
-int varmessage(__GPRO__ uch *buf, ulg size)
+int varmessage(__GPRO__ ZCONST uch *buf, ulg size)
 {
   if (size > 0)
     memcpy(G.os2.buffer+G.os2.putchar_idx,buf,size);

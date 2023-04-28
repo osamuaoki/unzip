@@ -1,9 +1,10 @@
 /*
- Copyright (C) 1996 Mike White
- Permission is granted to any individual or institution to use, copy, or
- redistribute this software so long as all of the original files are included,
- that it is not sold for profit, and that this copyright notice is retained.
+  Copyright (c) 1990-2002 Info-ZIP.  All rights reserved.
 
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
 */
 /* Windows Info-ZIP Unzip DLL module
  *
@@ -27,20 +28,21 @@
 
   ---------------------------------------------------------------------------*/
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #ifdef __RSXNT__
-#  include "win32/rsxntwin.h"
+#  include "../win32/rsxntwin.h"
 #endif
 #ifdef __BORLANDC__
 #include <dir.h>
 #endif
 #define UNZIP_INTERNAL
-#include "unzip.h"
-#include "crypt.h"
-#include "version.h"
-#include "windll.h"
-#include "structs.h"
-#include "consts.h"
+#include "../unzip.h"
+#include "../crypt.h"
+#include "../unzvers.h"
+#include "../windll/windll.h"
+#include "../windll/structs.h"
+#include "../consts.h"
 
 /* Added type casts to prevent potential "type mismatch" error messages. */
 #ifdef REENTRANT
@@ -55,6 +57,9 @@ HANDLE hInst;               /* current instance */
 HANDLE hDCL;
 int fNoPrinting = 0;
 extern jmp_buf dll_error_return;
+
+/* Helper function to release memory allocated by Wiz_SetOpts() */
+static void FreeDllMem(__GPRO);
 
 /* For displaying status messages and error messages */
 static int UZ_EXP DllMessagePrint(zvoid *pG, uch *buf, ulg size, int flag);
@@ -132,22 +137,46 @@ return 1;
 
 /* DLL calls */
 
+BOOL WINAPI Wiz_Init(pG, lpUserFunc)
+zvoid *pG;
+LPUSERFUNCTIONS lpUserFunc;
+{
+G.message = DllMessagePrint;
+G.statreportcb = Wiz_StatReportCB;
+if (lpUserFunc->sound == NULL)
+   lpUserFunc->sound = DummySound;
+G.lpUserFunctions = lpUserFunc;
+
+SETLOCALE(LC_CTYPE, "");
+
+if (!G.lpUserFunctions->print ||
+    !G.lpUserFunctions->sound ||
+    !G.lpUserFunctions->replace)
+    return FALSE;
+
+return TRUE;
+}
+
 /*
-    ExtractOnlyNewer  = true if you are to extract only newer
+    ExtractOnlyNewer  = true for "update" without interaction
+                        (extract only newer/new files, without queries)
     SpaceToUnderscore = true if convert space to underscore
     PromptToOverwrite = true if prompt to overwrite is wanted
     fQuiet    = quiet flag. 1 = few messages, 2 = no messages, 0 = all messages
     ncflag    = write to stdout if true
     ntflag    = test zip file
     nvflag    = verbose listing
-    nUflag    = "update" (extract only newer/new files)
+    nfflag    = "freshen" (replace existing files by newer versions)
     nzflag    = display zip file comment
-    ndflag    = all args are files/dir to be extracted
+    ndflag    = controls (sub)directory recreation during extraction
+                0 = junk paths from filenames
+                1 = "safe" usage of paths in filenames (skip "../" components)
+                2 = allow also unsafe path components (directory traversal)
     noflag    = overwrite all files
     naflag    = do end-of-line translation
     nZIflag   = get Zip Info if TRUE
     C_flag    = be case insensitive if TRUE
-    fPrivilege = restore ACL's if 1, use privileges if 2
+    fPrivilege = restore ACL's if > 0, use privileges if 2
     lpszZipFN = zip file name
     lpszExtractDir = directory to extract to; NULL means: current directory
 */
@@ -160,21 +189,21 @@ LPDCL C;
     G.pfnames = (char **)&fnames[0];    /* assign default file name vector */
     G.pxnames = (char **)&fnames[1];
 
-    uO.jflag = !C->ndflag;
+    uO.jflag = (C->ndflag == 0);
+    uO.ddotflag = (C->ndflag >= 2);
     uO.cflag = C->ncflag;
-    uO.overwrite_all = C->noflag;
-    uO.tflag = C->ntflag ;
+    uO.tflag = C->ntflag;
     uO.vflag = C->nvflag;
     uO.zflag = C->nzflag;
-    uO.uflag = C->nUflag;
     uO.aflag = C->naflag;
     uO.C_flag = C->C_flag;
-    uO.uflag = C->ExtractOnlyNewer;
-    G.prompt_always = C->PromptToOverwrite;
+    uO.overwrite_all = C->noflag || !C->PromptToOverwrite;
+    uO.overwrite_none = FALSE;
+    uO.uflag = C->ExtractOnlyNewer || C->nfflag;
+    uO.fflag = C->nfflag;
 #ifdef WIN32
     uO.X_flag = C->fPrivilege;
 #endif
-    uO.overwrite_none = !uO.overwrite_all;
     uO.sflag = C->SpaceToUnderscore; /* Translate spaces to underscores? */
     if (C->nZIflag)
       {
@@ -227,7 +256,7 @@ LPDCL C;
     return TRUE;    /* set up was OK */
 }
 
-void FreeDllMem(__GPRO)
+static void FreeDllMem(__GPRO)
 {
     if (G.wildzipfn) {
         GlobalUnlock(hwildZipFN);
@@ -237,59 +266,6 @@ void FreeDllMem(__GPRO)
         hwildZipFN = GlobalFree(hwildZipFN);
 
     uO.zipinfo_mode = FALSE;
-}
-
-int WINAPI Wiz_SingleEntryUnzip(int ifnc, char **ifnv, int xfnc, char **xfnv,
-   LPDCL C, LPUSERFUNCTIONS lpUserFunc)
-{
-int retcode;
-CONSTRUCTGLOBALS();
-
-if (!Wiz_Init((zvoid *)&G, lpUserFunc))
-   {
-   DESTROYGLOBALS();
-   return PK_BADERR;
-   }
-
-if (C->lpszZipFN == NULL) /* Something has screwed up, we don't have a filename */
-   {
-   DESTROYGLOBALS();
-   return PK_NOZIP;
-   }
-
-Wiz_SetOpts((zvoid *)&G, C);
-
-#ifdef SFX
-G.zipfn = C->lpszZipFN;
-G.argv0 = C->lpszZipFN;
-#endif
-
-/* Here is the actual call to "unzip" the files (or whatever else you
- * are doing.)
- */
-retcode = Wiz_Unzip((zvoid *)&G, ifnc, ifnv, xfnc, xfnv);
-
-DESTROYGLOBALS();
-return retcode;
-}
-
-
-BOOL WINAPI Wiz_Init(pG, lpUserFunc)
-zvoid *pG;
-LPUSERFUNCTIONS lpUserFunc;
-{
-G.message = DllMessagePrint;
-G.statreportcb = Wiz_StatReportCB;
-if (lpUserFunc->sound == NULL)
-   lpUserFunc->sound = DummySound;
-G.lpUserFunctions = lpUserFunc;
-
-if (!G.lpUserFunctions->print ||
-    !G.lpUserFunctions->sound ||
-    !G.lpUserFunctions->replace)
-    return FALSE;
-
-return TRUE;
 }
 
 int WINAPI Wiz_Unzip(pG, ifnc, ifnv, xfnc, xfnv)
@@ -448,6 +424,45 @@ return retcode;
 }
 
 
+int WINAPI Wiz_SingleEntryUnzip(int ifnc, char **ifnv, int xfnc, char **xfnv,
+   LPDCL C, LPUSERFUNCTIONS lpUserFunc)
+{
+int retcode;
+CONSTRUCTGLOBALS();
+
+if (!Wiz_Init((zvoid *)&G, lpUserFunc))
+   {
+   DESTROYGLOBALS();
+   return PK_BADERR;
+   }
+
+if (C->lpszZipFN == NULL) /* Something has screwed up, we don't have a filename */
+   {
+   DESTROYGLOBALS();
+   return PK_NOZIP;
+   }
+
+if (!Wiz_SetOpts((zvoid *)&G, C))
+   {
+   DESTROYGLOBALS();
+   return PK_MEM;
+   }
+
+#ifdef SFX
+G.zipfn = C->lpszZipFN;
+G.argv0 = C->lpszZipFN;
+#endif
+
+/* Here is the actual call to "unzip" the files (or whatever else you
+ * are doing.)
+ */
+retcode = Wiz_Unzip((zvoid *)&G, ifnc, ifnv, xfnc, xfnv);
+
+DESTROYGLOBALS();
+return retcode;
+}
+
+
 int win_fprintf(zvoid *pG, FILE *file, unsigned int size, char far *buffer)
 {
 if ((file != stderr) && (file != stdout))
@@ -560,7 +575,9 @@ static int WINAPI Wiz_StatReportCB(zvoid *pG, int fnflag, ZCONST char *zfn,
         break;
       case UZ_ST_FINISH_MEMBER:
         if ((G.lpUserFunctions->ServCallBk != NULL) &&
-            (*G.lpUserFunctions->ServCallBk)(efn, *((unsigned long *)details)))
+            (*G.lpUserFunctions->ServCallBk)(efn,
+                                             (details == NULL ? 0L :
+                                              *((unsigned long *)details))))
             rval = UZ_ST_BREAK;
         break;
       case UZ_ST_IN_PROGRESS:
@@ -587,12 +604,12 @@ int WINAPI Wiz_UnzipToMemory(LPSTR zip, LPSTR file,
 #ifndef CRTL_CP_IS_ISO
     intern_zip = (char *)malloc(strlen(zip)+1);
     if (intern_zip == NULL) {
-       DESTROYGLOBALS()
+       DESTROYGLOBALS();
        return PK_MEM;
     }
     intern_file = (char *)malloc(strlen(file)+1);
     if (intern_file == NULL) {
-       DESTROYGLOBALS()
+       DESTROYGLOBALS();
        free(intern_zip);
        return PK_MEM;
     }
@@ -609,7 +626,7 @@ int WINAPI Wiz_UnzipToMemory(LPSTR zip, LPSTR file,
 
     r = (unzipToMemory(__G__ zip, file, retstr) == PK_COOL);
 
-    DESTROYGLOBALS()
+    DESTROYGLOBALS();
 #ifndef CRTL_CP_IS_ISO
 #  undef file
 #  undef zip

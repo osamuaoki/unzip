@@ -1,10 +1,25 @@
-/* inflate.c -- put in the public domain by Mark Adler
-   version c16b, 29 March 1998 */
+/*
+  Copyright (c) 1990-2002 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in unzip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
+/* inflate.c -- by Mark Adler
+   version c17a, 04 Feb 2001 */
 
 
-/* You can do whatever you like with this source file, though I would
-   prefer that if you modify it and redistribute it that you include
-   comments to that effect with your name and the date.  Thank you.
+/* Copyright history:
+   - Starting with UnZip 5.41 of 16-April-2000, this source file
+     is covered by the Info-Zip LICENSE cited above.
+   - Prior versions of this source file, found in UnZip source packages
+     up to UnZip 5.40, were put in the public domain.
+     The original copyright note by Mark Adler was:
+         "You can do whatever you like with this source file,
+         though I would prefer that if you modify it and
+         redistribute it that you include comments to that effect
+         with your name and the date.  Thank you."
 
    History:
    vers    date          who           what
@@ -93,6 +108,15 @@
                                     PK_MEM2 to PK_MEM3
     c16  20 Apr 97  J. Altman       added memzero(v[]) in huft_build()
    c16b  29 Mar 98  C. Spieler      modified DLL code for slide redirection
+   c16c  04 Apr 99  C. Spieler      fixed memory leaks when processing gets
+                                    stopped because of input data errors
+   c16d  05 Jul 99  C. Spieler      take care of FLUSH() return values and
+                                    stop processing in case of errors
+    c17  31 Dec 00  C. Spieler      added preliminary support for Deflate64
+   c17a  04 Feb 01  C. Spieler      complete integration of Deflate64 support
+   c17b  16 Feb 02  C. Spieler      changed type of "extra bits" arrays and
+                                    corresponding huft_buid() parameter e from
+                                    ush into uch, to save space
  */
 
 
@@ -143,6 +167,9 @@
            1  incomplete table
            2  bad input
            3  not enough memory
+         the following return codes are passed through from FLUSH() errors
+           50 (PK_DISK)   "overflow of output space"
+           80 (IZ_CTRLC)  "canceled by user's request"
  */
 
 
@@ -189,6 +216,22 @@
       single stream of lengths.  It is possible (and advantageous) for
       a repeat code (16, 17, or 18) to go across the boundary between
       the two sets of lengths.
+  14. The Deflate64 (PKZIP method 9) variant of the compression algorithm
+      differs from "classic" deflate in the following 3 aspect:
+      a) The size of the sliding history window is expanded to 64 kByte.
+      b) The previously unused distance codes #30 and #31 code distances
+         from 32769 to 49152 and 49153 to 65536.  Both codes take 14 bits
+         of extra data to determine the exact position in their 16 kByte
+         range.
+      c) The last lit/length code #285 gets a different meaning. Instead
+         of coding a fixed maximum match length of 258, it is used as a
+         "generic" match length code, capable of coding any length from
+         3 (min match length + 0) to 65538 (min match length + 65535).
+         This means that the length code #285 takes 16 bits (!) of uncoded
+         extra data, added to a fixed min length of 3.
+      Changes a) and b) would have been transparent for valid deflated
+      data, but change c) requires to switch decoder configurations between
+      Deflate and Deflate64 modes.
  */
 
 
@@ -214,14 +257,31 @@
     prototypes are normally found in <string.h> and <stdlib.h>.
  */
 
+#define __INFLATE_C     /* identifies this source module */
+
 /* #define DEBUG */
 #define INFMOD          /* tell inflate.h to include code to be compiled */
 #include "inflate.h"
 
 
-#ifndef WSIZE           /* default is 32K */
-#  define WSIZE 0x8000  /* window size--must be a power of two, and at least */
-#endif                  /* 32K for zip's deflate method */
+/* marker for "unused" huft code, and corresponding check macro */
+#define INVALID_CODE 99
+#define IS_INVALID_CODE(c)  ((c) == INVALID_CODE)
+
+#ifndef WSIZE               /* default is 32K resp. 64K */
+#  ifdef USE_DEFLATE64
+#    define WSIZE   65536L  /* window size--must be a power of two, and */
+#  else                     /*  at least 64K for PKZip's deflate64 method */
+#    define WSIZE   0x8000  /* window size--must be a power of two, and */
+#  endif                    /*  at least 32K for zip's deflate method */
+#endif
+
+/* some buffer counters must be capable of holding 64k for Deflate64 */
+#if (defined(USE_DEFLATE64) && defined(INT_16BIT))
+#  define UINT_D64 ulg
+#else
+#  define UINT_D64 unsigned
+#endif
 
 #if (defined(DLL) && !defined(NO_SLIDE_REDIR))
 #  define wsize G._wsize    /* wsize is a variable */
@@ -239,10 +299,14 @@
 #endif
 
 #ifndef FLUSH           /* default is to simply write the buffer to stdout */
-#  define FLUSH(n) fwrite(redirSlide, 1, n, stdout)  /* return value not used */
+#  define FLUSH(n) \
+    (((extent)fwrite(redirSlide, 1, (extent)(n), stdout) == (extent)(n)) ? \
+     0 : PKDISK)
 #endif
 /* Warning: the fwrite above might not work on 16-bit compilers, since
-   0x8000 might be interpreted as -32,768 by the library function. */
+   0x8000 might be interpreted as -32,768 by the library function.  When
+   support for Deflate64 is enabled, the window size is 64K and the
+   simple fwrite statement is definitely broken for 16-bit compilers. */
 
 #ifndef Trace
 #  ifdef DEBUG
@@ -269,9 +333,12 @@
 /*  Function UZinflate()  */
 /**************************/
 
-int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
+int UZinflate(__G__ is_defl64)
     __GDEF
+    int is_defl64;
+/* decompress an inflated entry using the zlib routines */
 {
+    int retval = 0;     /* return code: 0 = "no error" */
     int err=Z_OK;
 
 #if (defined(DLL) && !defined(NO_SLIDE_REDIR))
@@ -303,7 +370,7 @@ int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
               ZLIB_VERSION, zlib_version));
 
         /* windowBits = log2(wsize) */
-        for (i = ((unsigned)wsize * 2 - 1), windowBits = 0;
+        for (i = (unsigned)wsize, windowBits = 0;
              !(i & 1);  i >>= 1, ++windowBits);
         if ((unsigned)windowBits > (unsigned)15)
             windowBits = 15;
@@ -332,11 +399,11 @@ int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
         while (G.dstrm.avail_out > 0) {
             err = inflate(&G.dstrm, Z_PARTIAL_FLUSH);
 
-            if (err == Z_DATA_ERROR)
-                return 2;
-            else if (err == Z_MEM_ERROR)
-                return 3;
-            else if (err != Z_OK && err != Z_STREAM_END)
+            if (err == Z_DATA_ERROR) {
+                retval = 2; goto uzinflate_cleanup_exit;
+            } else if (err == Z_MEM_ERROR) {
+                retval = 3; goto uzinflate_cleanup_exit;
+            } else if (err != Z_OK && err != Z_STREAM_END)
                 Trace((stderr, "oops!  (inflate(first loop) err = %d)\n", err));
 
 #ifdef FUNZIP
@@ -347,15 +414,19 @@ int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
                 break;
 
             if (G.dstrm.avail_in <= 0) {
-                if (fillinbuf(__G) == 0)
-                    return 2;  /* no "END-condition" yet, but no more data */
+                if (fillinbuf(__G) == 0) {
+                    /* no "END-condition" yet, but no more data */
+                    retval = 2; goto uzinflate_cleanup_exit;
+                }
 
                 G.dstrm.next_in = G.inptr;
                 G.dstrm.avail_in = G.incnt;
             }
             Trace((stderr, "     avail_in = %d\n", G.dstrm.avail_in));
         }
-        FLUSH(wsize - G.dstrm.avail_out);   /* flush slide[] */
+        /* flush slide[] */
+        if ((retval = FLUSH(wsize - G.dstrm.avail_out)) != 0)
+            goto uzinflate_cleanup_exit;
         Trace((stderr, "inside loop:  flushing %ld bytes (ptr diff = %ld)\n",
           (long)(wsize - G.dstrm.avail_out),
           (long)(G.dstrm.next_out-(Bytef *)redirSlide)));
@@ -367,20 +438,23 @@ int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
     Trace((stderr, "beginning final loop:  err = %d\n", err));
     while (err != Z_STREAM_END) {
         err = inflate(&G.dstrm, Z_PARTIAL_FLUSH);
-        if (err == Z_DATA_ERROR)
-            return 2;
-        else if (err == Z_MEM_ERROR)
-            return 3;
-        else if (err == Z_BUF_ERROR) {              /* DEBUG */
-            Trace((stderr, "zlib inflate() did not detect stream end (%s, %s)\n"
-              , G.zipfn, G.filename));
+        if (err == Z_DATA_ERROR) {
+            retval = 2; goto uzinflate_cleanup_exit;
+        } else if (err == Z_MEM_ERROR) {
+            retval = 3; goto uzinflate_cleanup_exit;
+        } else if (err == Z_BUF_ERROR) {                /* DEBUG */
+            Trace((stderr,
+                   "zlib inflate() did not detect stream end (%s, %s)\n",
+                   G.zipfn, G.filename));
             break;
         } else if (err != Z_OK && err != Z_STREAM_END) {
             Trace((stderr, "oops!  (inflate(final loop) err = %d)\n", err));
-            DESTROYGLOBALS()
+            DESTROYGLOBALS();
             EXIT(PK_MEM3);
         }
-        FLUSH(wsize - G.dstrm.avail_out);   /* final flush of slide[] */
+        /* final flush of slide[] */
+        if ((retval = FLUSH(wsize - G.dstrm.avail_out)) != 0)
+            goto uzinflate_cleanup_exit;
         Trace((stderr, "final loop:  flushing %ld bytes (ptr diff = %ld)\n",
           (long)(wsize - G.dstrm.avail_out),
           (long)(G.dstrm.next_out-(Bytef *)redirSlide)));
@@ -393,11 +467,12 @@ int UZinflate(__G)   /* decompress an inflated entry using the zlib routines */
     G.inptr = (uch *)G.dstrm.next_in;
     G.incnt = (G.inbuf + INBUFSIZ) - G.inptr;  /* reset for other routines */
 
+uzinflate_cleanup_exit:
     err = inflateReset(&G.dstrm);
     if (err != Z_OK)
         Trace((stderr, "oops!  (inflateReset() err = %d)\n", err));
 
-    return 0;
+    return retval;
 }
 
 
@@ -433,25 +508,74 @@ static int inflate_block OF((__GPRO__ int *e));
 
 /* unsigned wp;  moved to globals.h */     /* current position in slide */
 
-
 /* Tables for deflate from PKZIP's appnote.txt. */
-static ZCONST unsigned border[] = { /* Order of the bit length code lengths */
+/* - Order of the bit length code lengths */
+static ZCONST unsigned border[] = {
         16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
-static ZCONST ush cplens[] = {  /* Copy lengths for literal codes 257..285 */
+
+/* - Copy lengths for literal codes 257..285 */
+#ifdef USE_DEFLATE64
+static ZCONST ush cplens64[] = {
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 3, 0, 0};
+        /* For Deflate64, the code 285 is defined differently. */
+#else
+#  define cplens32 cplens
+#endif
+static ZCONST ush cplens32[] = {
         3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
         35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0};
         /* note: see note #13 above about the 258 in this list. */
-static ZCONST ush cplext[] = {  /* Extra bits for literal codes 257..285 */
+/* - Extra bits for literal codes 257..285 */
+#ifdef USE_DEFLATE64
+static ZCONST uch cplext64[] = {
         0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, 99, 99}; /* 99==invalid */
-static ZCONST ush cpdist[] = {  /* Copy offsets for distance codes 0..29 */
+        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 16, INVALID_CODE, INVALID_CODE};
+#else
+#  define cplext32 cplext
+#endif
+static ZCONST uch cplext32[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, INVALID_CODE, INVALID_CODE};
+
+/* - Copy offsets for distance codes 0..29 (0..31 for Deflate64) */
+static ZCONST ush cpdist[] = {
         1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
         257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145,
+#if (defined(USE_DEFLATE64) || defined(PKZIP_BUG_WORKAROUND))
+        8193, 12289, 16385, 24577, 32769, 49153};
+#else
         8193, 12289, 16385, 24577};
-static ZCONST ush cpdext[] = {  /* Extra bits for distance codes */
+#endif
+
+/* - Extra bits for distance codes 0..29 (0..31 for Deflate64) */
+#ifdef USE_DEFLATE64
+static ZCONST uch cpdext64[] = {
         0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
         7, 7, 8, 8, 9, 9, 10, 10, 11, 11,
+        12, 12, 13, 13, 14, 14};
+#else
+#  define cpdext32 cpdext
+#endif
+static ZCONST uch cpdext32[] = {
+        0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
+        7, 7, 8, 8, 9, 9, 10, 10, 11, 11,
+#ifdef PKZIP_BUG_WORKAROUND
+        12, 12, 13, 13, INVALID_CODE, INVALID_CODE};
+#else
         12, 12, 13, 13};
+#endif
+
+#ifdef PKZIP_BUG_WORKAROUND
+#  define MAXLITLENS 288
+#else
+#  define MAXLITLENS 286
+#endif
+#if (defined(USE_DEFLATE64) || defined(PKZIP_BUG_WORKAROUND))
+#  define MAXDISTS 32
+#else
+#  define MAXDISTS 30
+#endif
 
 
 /* moved to consts.h (included in unzip.c), resp. funzip.c */
@@ -498,9 +622,10 @@ unsigned bk;                    /* bits in bit buffer */
 #ifndef CHECK_EOF
 #  define NEEDBITS(n) {while(k<(n)){b|=((ulg)NEXTBYTE)<<k;k+=8;}}
 #else
-#  define NEEDBITS(n) {while(k<(n)){int c=NEXTBYTE;if(c==EOF)return 1;\
+#  define NEEDBITS(n) {while(k<(n)){int c=NEXTBYTE;\
+    if(c==EOF){retval=1;goto cleanup_and_exit;}\
     b|=((ulg)c)<<k;k+=8;}}
-#endif                      /* Piet Plomp:  change "return 1" to "break" */
+#endif
 
 #define DUMPBITS(n) {b>>=(n);k-=(n);}
 
@@ -552,12 +677,14 @@ int bl, bd;             /* number of bits decoded by tl[] and td[] */
    Return an error code or zero if it all goes ok. */
 {
   register unsigned e;  /* table entry flag/number of extra bits */
-  unsigned n, d;        /* length and index for copy */
-  unsigned w;           /* current window position */
+  unsigned d;           /* index for copy */
+  UINT_D64 n;           /* length for copy (deflate64: might be 64k+2) */
+  UINT_D64 w;           /* current window position (deflate64: up to 64k) */
   struct huft *t;       /* pointer to table entry */
   unsigned ml, md;      /* masks for bl and bd bits */
   register ulg b;       /* bit buffer */
   register unsigned k;  /* number of bits in bit buffer */
+  int retval = 0;       /* error code returned: initialized to "no error" */
 
 
   /* make local copies of globals */
@@ -572,91 +699,108 @@ int bl, bd;             /* number of bits decoded by tl[] and td[] */
   while (1)                     /* do until end of block */
   {
     NEEDBITS((unsigned)bl)
-    if ((e = (t = tl + ((unsigned)b & ml))->e) > 16)
-      do {
-        if (e == 99)
-          return 1;
-        DUMPBITS(t->b)
-        e -= 16;
-        NEEDBITS(e)
-      } while ((e = (t = t->v.t + ((unsigned)b & mask_bits[e]))->e) > 16);
-    DUMPBITS(t->b)
-    if (e == 16)                /* then it's a literal */
-    {
-      redirSlide[w++] = (uch)t->v.n;
-      if (w == wsize)
-      {
-        FLUSH(w);
-        w = 0;
-      }
-    }
-    else                        /* it's an EOB or a length */
-    {
-      /* exit if end of block */
-      if (e == 15)
-        break;
-
-      /* get length of block to copy */
-      NEEDBITS(e)
-      n = t->v.n + ((unsigned)b & mask_bits[e]);
-      DUMPBITS(e);
-
-      /* decode distance of block to copy */
-      NEEDBITS((unsigned)bd)
-      if ((e = (t = td + ((unsigned)b & md))->e) > 16)
-        do {
-          if (e == 99)
-            return 1;
-          DUMPBITS(t->b)
-          e -= 16;
-          NEEDBITS(e)
-        } while ((e = (t = t->v.t + ((unsigned)b & mask_bits[e]))->e) > 16);
+    t = tl + ((unsigned)b & ml);
+    while (1) {
       DUMPBITS(t->b)
-      NEEDBITS(e)
-      d = w - t->v.n - ((unsigned)b & mask_bits[e]);
-      DUMPBITS(e)
 
-      /* do the copy */
-      do {
-#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
-        if (G.redirect_slide) {/* &= w/ wsize unnecessary & wrong if redirect */
-          if (d >= wsize)
-            return 1;           /* invalid compressed data */
-          n -= (e = (e = wsize - (d > w ? d : w)) > n ? n : e);
-        }
-        else
-#endif
-          n -= (e = (e = wsize - ((d &= wsize-1) > w ? d : w)) > n ? n : e);
-#ifndef NOMEMCPY
-        if (w - d >= e)         /* (this test assumes unsigned comparison) */
-        {
-          memcpy(redirSlide + w, redirSlide + d, e);
-          w += e;
-          d += e;
-        }
-        else                    /* do it slowly to avoid memcpy() overlap */
-#endif /* !NOMEMCPY */
-          do {
-            redirSlide[w++] = redirSlide[d++];
-          } while (--e);
+      if ((e = t->e) == 32)     /* then it's a literal */
+      {
+        redirSlide[w++] = (uch)t->v.n;
         if (w == wsize)
         {
-          FLUSH(w);
+          if ((retval = FLUSH(w)) != 0) goto cleanup_and_exit;
           w = 0;
         }
-      } while (n);
+        break;
+      }
+
+      if (e < 31)               /* then it's a length */
+      {
+        /* get length of block to copy */
+        NEEDBITS(e)
+        n = t->v.n + ((unsigned)b & mask_bits[e]);
+        DUMPBITS(e)
+
+        /* decode distance of block to copy */
+        NEEDBITS((unsigned)bd)
+        t = td + ((unsigned)b & md);
+        while (1) {
+          DUMPBITS(t->b)
+          if ((e = t->e) < 32)
+            break;
+          if (IS_INVALID_CODE(e))
+            return 1;
+          e &= 31;
+          NEEDBITS(e)
+          t = t->v.t + ((unsigned)b & mask_bits[e]);
+        }
+        NEEDBITS(e)
+        d = (unsigned)w - t->v.n - ((unsigned)b & mask_bits[e]);
+        DUMPBITS(e)
+
+        /* do the copy */
+        do {
+#if (defined(DLL) && !defined(NO_SLIDE_REDIR))
+          if (G.redirect_slide) {
+            /* &= w/ wsize unnecessary & wrong if redirect */
+            if ((UINT_D64)d >= wsize)
+              return 1;         /* invalid compressed data */
+            e = (unsigned)(wsize - (d > (unsigned)w ? (UINT_D64)d : w));
+          }
+          else
+#endif
+            e = (unsigned)(wsize -
+                           ((d &= (unsigned)(wsize-1)) > (unsigned)w ?
+                            (UINT_D64)d : w));
+          if ((UINT_D64)e > n) e = (unsigned)n;
+          n -= e;
+#ifndef NOMEMCPY
+          if ((unsigned)w - d >= e)
+          /* (this test assumes unsigned comparison) */
+          {
+            memcpy(redirSlide + (unsigned)w, redirSlide + d, e);
+            w += e;
+            d += e;
+          }
+          else                  /* do it slowly to avoid memcpy() overlap */
+#endif /* !NOMEMCPY */
+            do {
+              redirSlide[w++] = redirSlide[d++];
+            } while (--e);
+          if (w == wsize)
+          {
+            if ((retval = FLUSH(w)) != 0) goto cleanup_and_exit;
+            w = 0;
+          }
+        } while (n);
+        break;
+      }
+
+      if (e == 31)              /* it's the EOB signal */
+      {
+        /* sorry for this goto, but we have to exit two loops at once */
+        goto cleanup_decode;
+      }
+
+      if (IS_INVALID_CODE(e))
+        return 1;
+
+      e &= 31;
+      NEEDBITS(e)
+      t = t->v.t + ((unsigned)b & mask_bits[e]);
     }
   }
-
+cleanup_decode:
 
   /* restore the globals from the locals */
-  G.wp = w;                       /* restore global window pointer */
+  G.wp = (unsigned)w;             /* restore global window pointer */
   G.bb = b;                       /* restore global bit buffer */
   G.bk = k;
 
 
+cleanup_and_exit:
   /* done */
-  return 0;
+  return retval;
 }
 
 #endif /* ASM_INFLATECODES */
@@ -667,10 +811,11 @@ static int inflate_stored(__G)
      __GDEF
 /* "decompress" an inflated type 0 (stored) block. */
 {
+  UINT_D64 w;           /* current window position (deflate64: up to 64k!) */
   unsigned n;           /* number of bytes in block */
-  unsigned w;           /* current window position */
   register ulg b;       /* bit buffer */
   register unsigned k;  /* number of bits in bit buffer */
+  int retval = 0;       /* error code returned: initialized to "no error" */
 
 
   /* make local copies of globals */
@@ -702,7 +847,7 @@ static int inflate_stored(__G)
     redirSlide[w++] = (uch)b;
     if (w == wsize)
     {
-      FLUSH(w);
+      if ((retval = FLUSH(w)) != 0) goto cleanup_and_exit;
       w = 0;
     }
     DUMPBITS(8)
@@ -710,10 +855,12 @@ static int inflate_stored(__G)
 
 
   /* restore the globals from the locals */
-  G.wp = w;                       /* restore global window pointer */
+  G.wp = (unsigned)w;             /* restore global window pointer */
   G.bb = b;                       /* restore global bit buffer */
   G.bk = k;
-  return 0;
+
+cleanup_and_exit:
+  return retval;
 }
 
 
@@ -748,29 +895,39 @@ static int inflate_fixed(__G)
     for (; i < 288; i++)          /* make a complete, but wrong code set */
       l[i] = 8;
     G.fixed_bl = 7;
+#ifdef USE_DEFLATE64
+    if ((i = huft_build(__G__ l, 288, 257, G.cplens, G.cplext,
+                        &G.fixed_tl, &G.fixed_bl)) != 0)
+#else
     if ((i = huft_build(__G__ l, 288, 257, cplens, cplext,
                         &G.fixed_tl, &G.fixed_bl)) != 0)
+#endif
     {
       G.fixed_tl = (struct huft *)NULL;
       return i;
     }
 
     /* distance table */
-    for (i = 0; i < 30; i++)      /* make an incomplete code set */
+    for (i = 0; i < MAXDISTS; i++)      /* make an incomplete code set */
       l[i] = 5;
     G.fixed_bd = 5;
-    if ((i = huft_build(__G__ l, 30, 0, cpdist, cpdext,
+#ifdef USE_DEFLATE64
+    if ((i = huft_build(__G__ l, MAXDISTS, 0, cpdist, G.cpdext,
                         &G.fixed_td, &G.fixed_bd)) > 1)
+#else
+    if ((i = huft_build(__G__ l, MAXDISTS, 0, cpdist, cpdext,
+                        &G.fixed_td, &G.fixed_bd)) > 1)
+#endif
     {
       huft_free(G.fixed_tl);
-      G.fixed_tl = (struct huft *)NULL;
+      G.fixed_td = G.fixed_tl = (struct huft *)NULL;
       return i;
     }
   }
 
   /* decompress until an end-of-block code */
   return inflate_codes(__G__ G.fixed_tl, G.fixed_td,
-                             G.fixed_bl, G.fixed_bd) != 0;
+                             G.fixed_bl, G.fixed_bd);
 }
 
 
@@ -791,13 +948,10 @@ static int inflate_dynamic(__G)
   unsigned nb;          /* number of bit length codes */
   unsigned nl;          /* number of literal/length codes */
   unsigned nd;          /* number of distance codes */
-#ifdef PKZIP_BUG_WORKAROUND
-  unsigned ll[288+32]; /* literal/length and distance code lengths */
-#else
-  unsigned ll[286+30]; /* literal/length and distance code lengths */
-#endif
+  unsigned ll[MAXLITLENS+MAXDISTS]; /* lit./length and distance code lengths */
   register ulg b;       /* bit buffer */
   register unsigned k;  /* number of bits in bit buffer */
+  int retval = 0;       /* error code returned: initialized to "no error" */
 
 
   /* make local bit buffer */
@@ -816,11 +970,7 @@ static int inflate_dynamic(__G)
   NEEDBITS(4)
   nb = 4 + ((unsigned)b & 0xf);         /* number of bit length codes */
   DUMPBITS(4)
-#ifdef PKZIP_BUG_WORKAROUND
-  if (nl > 288 || nd > 32)
-#else
-  if (nl > 286 || nd > 30)
-#endif
+  if (nl > MAXLITLENS || nd > MAXDISTS)
     return 1;                   /* bad lengths */
 
 
@@ -837,14 +987,14 @@ static int inflate_dynamic(__G)
 
   /* build decoding table for trees--single level, 7 bit lookup */
   bl = 7;
-  i = huft_build(__G__ ll, 19, 19, NULL, NULL, &tl, &bl);
-  if (bl == 0)                        /* no bit lengths */
-    i = 1;
-  if (i)
+  retval = huft_build(__G__ ll, 19, 19, NULL, NULL, &tl, &bl);
+  if (bl == 0)                  /* no bit lengths */
+    retval = 1;
+  if (retval)
   {
-    if (i == 1)
+    if (retval == 1)
       huft_free(tl);
-    return i;                   /* incomplete code set */
+    return retval;              /* incomplete code set */
   }
 
 
@@ -906,52 +1056,53 @@ static int inflate_dynamic(__G)
 
   /* build the decoding tables for literal/length and distance codes */
   bl = lbits;
-  i = huft_build(__G__ ll, nl, 257, cplens, cplext, &tl, &bl);
-  if (bl == 0)                        /* no literals or lengths */
-    i = 1;
-  if (i)
+#ifdef USE_DEFLATE64
+  retval = huft_build(__G__ ll, nl, 257, G.cplens, G.cplext, &tl, &bl);
+#else
+  retval = huft_build(__G__ ll, nl, 257, cplens, cplext, &tl, &bl);
+#endif
+  if (bl == 0)                  /* no literals or lengths */
+    retval = 1;
+  if (retval)
   {
-    if (i == 1) {
+    if (retval == 1) {
       if (!uO.qflag)
         MESSAGE((uch *)"(incomplete l-tree)  ", 21L, 1);
       huft_free(tl);
     }
-    return i;                   /* incomplete code set */
+    return retval;              /* incomplete code set */
   }
   bd = dbits;
-  i = huft_build(__G__ ll + nl, nd, 0, cpdist, cpdext, &td, &bd);
-  if (bd == 0 && nl > 257)    /* lengths but no distances */
-  {
-    if (!uO.qflag)
-      MESSAGE((uch *)"(incomplete d-tree)  ", 21L, 1);
-    huft_free(tl);
-    return 1;
-  }
-  if (i == 1) {
-#ifdef PKZIP_BUG_WORKAROUND
-    i = 0;
+#ifdef USE_DEFLATE64
+  retval = huft_build(__G__ ll + nl, nd, 0, cpdist, G.cpdext, &td, &bd);
 #else
-    if (!uO.qflag)
-      MESSAGE((uch *)"(incomplete d-tree)  ", 21L, 1);
-    huft_free(td);
+  retval = huft_build(__G__ ll + nl, nd, 0, cpdist, cpdext, &td, &bd);
 #endif
-  }
-  if (i)
+#ifdef PKZIP_BUG_WORKAROUND
+  if (retval == 1)
+    retval = 0;
+#endif
+  if (bd == 0 && nl > 257)    /* lengths but no distances */
+    retval = 1;
+  if (retval)
   {
+    if (retval == 1) {
+      if (!uO.qflag)
+        MESSAGE((uch *)"(incomplete d-tree)  ", 21L, 1);
+      huft_free(td);
+    }
     huft_free(tl);
-    return i;
+    return retval;
   }
-
 
   /* decompress until an end-of-block code */
-  if (inflate_codes(__G__ tl, td, bl, bd))
-    return 1;
+  retval = inflate_codes(__G__ tl, td, bl, bd);
 
-
+cleanup_and_exit:
   /* free the decoding tables, return */
   huft_free(tl);
   huft_free(td);
-  return 0;
+  return retval;
 }
 
 
@@ -964,6 +1115,7 @@ static int inflate_block(__G__ e)
   unsigned t;           /* block type */
   register ulg b;       /* bit buffer */
   register unsigned k;  /* number of bits in bit buffer */
+  int retval = 0;       /* error code returned: initialized to "no error" */
 
 
   /* make local bit buffer */
@@ -998,13 +1150,17 @@ static int inflate_block(__G__ e)
 
 
   /* bad block type */
-  return 2;
+  retval = 2;
+
+cleanup_and_exit:
+  return retval;
 }
 
 
 
-int inflate(__G)
-     __GDEF
+int inflate(__G__ is_defl64)
+    __GDEF
+    int is_defl64;
 /* decompress an inflated entry */
 {
   int e;                /* last block flag */
@@ -1025,6 +1181,34 @@ int inflate(__G)
   G.bk = 0;
   G.bb = 0;
 
+#ifdef USE_DEFLATE64
+  if (is_defl64) {
+    G.cplens = cplens64;
+    G.cplext = cplext64;
+    G.cpdext = cpdext64;
+    G.fixed_tl = G.fixed_tl64;
+    G.fixed_bl = G.fixed_bl64;
+    G.fixed_td = G.fixed_td64;
+    G.fixed_bd = G.fixed_bd64;
+  } else {
+    G.cplens = cplens32;
+    G.cplext = cplext32;
+    G.cpdext = cpdext32;
+    G.fixed_tl = G.fixed_tl32;
+    G.fixed_bl = G.fixed_bl32;
+    G.fixed_td = G.fixed_td32;
+    G.fixed_bd = G.fixed_bd32;
+  }
+#else /* !USE_DEFLATE64 */
+  if (is_defl64) {
+    /* This should not happen unless UnZip is built from object files
+     * compiled with inconsistent option setting.  Handle this by
+     * returning with "bad input" error code.
+     */
+    Trace((stderr, "\nThis inflate() cannot handle Deflate64!\n"));
+    return 2;
+  }
+#endif /* ?USE_DEFLATE64 */
 
   /* decompress until the last block */
   do {
@@ -1039,21 +1223,31 @@ int inflate(__G)
 #endif
   } while (!e);
 
+  Trace((stderr, "\n%u bytes in Huffman tables (%u/entry)\n",
+         h * (unsigned)sizeof(struct huft), (unsigned)sizeof(struct huft)));
 
-  /* flush out redirSlide */
-  FLUSH(G.wp);
+#ifdef USE_DEFLATE64
+  if (is_defl64) {
+    G.fixed_tl64 = G.fixed_tl;
+    G.fixed_bl64 = G.fixed_bl;
+    G.fixed_td64 = G.fixed_td;
+    G.fixed_bd64 = G.fixed_bd;
+  } else {
+    G.fixed_tl32 = G.fixed_tl;
+    G.fixed_bl32 = G.fixed_bl;
+    G.fixed_td32 = G.fixed_td;
+    G.fixed_bd32 = G.fixed_bd;
+  }
+#endif
 
-
-  /* return success */
-  Trace((stderr, "\n%u bytes in Huffman tables (%d/entry)\n",
-         h * sizeof(struct huft), sizeof(struct huft)));
-  return 0;
+  /* flush out redirSlide and return (success, unless final FLUSH failed) */
+  return (FLUSH(G.wp));
 }
 
 
 
 int inflate_free(__G)
-     __GDEF
+    __GDEF
 {
   if (G.fixed_tl != (struct huft *)NULL)
   {
@@ -1084,7 +1278,7 @@ int huft_build(__G__ b, n, s, d, e, t, m)
   unsigned n;           /* number of codes (assumed <= N_MAX) */
   unsigned s;           /* number of simple-valued codes (0..s-1) */
   ZCONST ush *d;        /* list of base values for non-simple codes */
-  ZCONST ush *e;        /* list of extra bits for non-simple codes */
+  ZCONST uch *e;        /* list of extra bits for non-simple codes */
   struct huft **t;      /* result: starting table */
   int *m;               /* maximum lookup bits, returns actual */
 /* Given a list of code lengths and a maximum table size, make a set of
@@ -1235,7 +1429,7 @@ int huft_build(__G__ b, n, s, d, e, t, m)
         {
           x[h] = i;             /* save pattern for backing up */
           r.b = (uch)l[h-1];    /* bits to dump before this table */
-          r.e = (uch)(16 + j);  /* bits in this table */
+          r.e = (uch)(32 + j);  /* bits in this table */
           r.v.t = q;            /* pointer to this table */
           j = (i & ((1 << w) - 1)) >> (w - l[h-1]);
           u[h-1][j] = r;        /* connect to last table */
@@ -1245,15 +1439,15 @@ int huft_build(__G__ b, n, s, d, e, t, m)
       /* set up table entry in r */
       r.b = (uch)(k - w);
       if (p >= v + n)
-        r.e = 99;               /* out of values--invalid code */
+        r.e = INVALID_CODE;     /* out of values--invalid code */
       else if (*p < s)
       {
-        r.e = (uch)(*p < 256 ? 16 : 15);  /* 256 is end-of-block code */
+        r.e = (uch)(*p < 256 ? 32 : 31);  /* 256 is end-of-block code */
         r.v.n = (ush)*p++;                /* simple code is just the value */
       }
       else
       {
-        r.e = (uch)e[*p - s];   /* non-simple--look up in lists */
+        r.e = e[*p - s];        /* non-simple--look up in lists */
         r.v.n = d[*p++ - s];
       }
 

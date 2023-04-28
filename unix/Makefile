@@ -1,6 +1,6 @@
 #==============================================================================
 # Makefile for UnZip, UnZipSFX and fUnZip:  Unix and MS-DOS ("real" makes only)
-# Version:  5.4                                                19 November 1998
+# Version:  5.5                                                16 February 2002
 #==============================================================================
 
 
@@ -73,6 +73,9 @@ O = .o
 M = unix
 SHELL = /bin/sh
 
+# Version info for unix/unix.c
+HOST_VERSINFO=-DIZ_CC_NAME='\"\$$(CC) \"' -DIZ_OS_NAME='\"`uname -a`\"'
+
 # defaults for crc32 stuff and system dependent headers
 CRC32 = crc32
 OSDEP_H =
@@ -84,10 +87,10 @@ OBJS3 = process$O ttyio$O unreduce$O unshrink$O zipinfo$O
 OBJS = $(OBJS1) $(OBJS2) $(OBJS3) $M$O
 LOBJS = $(OBJS)
 OBJSDLL = $(OBJS:.o=.pic.o) api.pic.o
-OBJX = unzipsfx$O $(CRC32)$O crctab$O crypt$O extract_$O fileio$O globals$O \
-	inflate$O match$O process_$O ttyio$O $M_$O
+OBJX = unzipsfx$O $(CRC32)$O crctab_$O crypt_$O extract_$O fileio_$O \
+	globals_$O inflate_$O match_$O process_$O ttyio_$O $M_$O
 LOBJX = $(OBJX)
-OBJF = funzip$O $(CRC32)$O crypt_$O globals_$O inflate_$O ttyio_$O
+OBJF = funzip$O $(CRC32)$O cryptf$O globalsf$O inflatef$O ttyiof$O
 #OBJS_OS2 = $(OBJS1:.o=.obj) $(OBJS2:.o=.obj) os2.obj
 #OBJF_OS2 = $(OBJF:.o=.obj)
 UNZIP_H = unzip.h unzpriv.h globals.h $(OSDEP_H)
@@ -95,6 +98,7 @@ UNZIP_H = unzip.h unzpriv.h globals.h $(OSDEP_H)
 # installation
 # (probably can change next two to `install' and `install -d' if you have it)
 INSTALL = cp
+INSTALL_PROGRAM = $(INSTALL)
 INSTALL_D = mkdir -p
 # on some systems, manext=l and MANDIR=/usr/man/man$(manext) may be appropriate
 manext = 1
@@ -109,23 +113,24 @@ INSTALLEDMAN = $(MANDIR)/funzip.$(manext) $(MANDIR)/unzip.$(manext) \
 
 # Solaris 2.x stuff:
 PKGDIR = IZunzip
-VERSION = Version 5.4
+VERSION = Version 5.5
 
 UNZIPS = unzip$E funzip$E unzipsfx$E
 # this is a little ugly...well, OK, it's a lot ugly:
-MANS = unix/funzip.1 unix/unzip.1 unix/unzipsfx.1 unix/zipgrep.1 unix/zipinfo.1
-DOCS = funzip.doc unzip.doc unzipsfx.doc zipgrep.doc zipinfo.doc
+MANS = man/funzip.1 man/unzip.1 man/unzipsfx.1 man/zipgrep.1 man/zipinfo.1
+DOCS = funzip.txt unzip.txt unzipsfx.txt zipgrep.txt zipinfo.txt
 
 # list of supported systems/targets in this version
-SYSTEMS1 = generic generic2 generic3 generic_zlib generic_shlib
-SYSTEMS2 = 386i 3Bx 7300 7300_gcc aix aix_rt amdahl amdahl_eft apollo aviion
-SYSTEMS3 = bsd bsdi bsdi_noasm bull coherent convex cray cray_opt cyber_sgi
-SYSTEMS4 = dec dnix encore eta freebsd gcc gould hk68 hp hpux isc isc_gcc isi
-SYSTEMS5 = linux linux_dos linux_noasm linux_shlib linux_shlibz lynx minix
-SYSTEMS6 = mips next next10 next2x next3x nextfat osf1 pixel ptx pyramid
-SYSTEMS7 = qnxnto realix regulus rs6000 sco sco_dos sco_sl sco_x286 sequent sgi
-SYSTEMS8 = solaris solaris_pkg stardent stellar sunos3 sunos4 sysv sysv_gcc
-SYSTEMS9 = sysv6300 tahoe ti_sysv ultrix vax v7 wombat xenix xos
+SYSTEMSG = generic generic2 generic3 generic_zlib generic_shlib
+SYSTEMS1 = 386i 3Bx 7300 7300_gcc aix aix_rt amdahl amdahl_eft apollo aviion
+SYSTEMS2 = bsd bsdi bsdi_noasm bull coherent convex cray cray_opt cyber_sgi
+SYSTEMS3 = dec dnix encore eta freebsd gcc gould hk68 hp hpux isc isc_gcc
+SYSTEMS4 = isi linux linux_dos linux_noasm linux_shlib linux_shlibz lynx
+SYSTEMS5 = maxosx macosx_gcc minix mips mpeix next next10 next2x next3x
+SYSTEMS6 = nextfat osf1 pixel ptx pyramid qnxnto realix regulus rs6000 sco
+SYSTEMS7 = sco_dos sco_sl sco_x286 sequent sgi solaris solaris_pkg stardent
+SYSTEMS8 = stellar sunos3 sunos4 sysv sysv_gcc sysv6300 tahoe ti_sysv ultrix
+SYSTEMS9 = vax v7 wombat xenix xos
 
 
 ####################
@@ -160,11 +165,7 @@ help:
 	@echo\
  '  notes on compiling various targets.  As a last resort, feel free to read'
 	@echo\
- '  the numerous comments within the Makefile itself.  Note that to compile'
-	@echo\
- '  the decryption version of UnZip, you must obtain the full versions of'
-	@echo\
- '  crypt.c and crypt.h (see the "WHERE" file for ftp and mail-server sites).'
+ '  the numerous comments within the Makefile itself.'
 	@echo\
  '  Have a mostly pretty good day.'
 	@echo ""
@@ -174,8 +175,9 @@ list:
 	@echo\
  'Type "make <system>", where <system> is one of the following:'
 	@echo ""
-	@echo  "	$(SYSTEMS1)"
+	@echo  "	$(SYSTEMSG)"
 	@echo ""
+	@echo  "	$(SYSTEMS1)"
 	@echo  "	$(SYSTEMS2)"
 	@echo  "	$(SYSTEMS3)"
 	@echo  "	$(SYSTEMS4)"
@@ -223,7 +225,7 @@ generic_msg:
 	$(CC) -c $(CF) -o $@ $*.c
 
 # this doesn't work...directories are always a pain with implicit rules
-#.1.doc:		unix/$<
+#.1.txt:		man/$<
 #	nroff -Tman -man $< | col -b | uniq | \
 #	 sed 's/Sun Release ..../Info-ZIP        /' > $@
 
@@ -231,23 +233,23 @@ generic_msg:
 # these rules may be specific to Linux (or at least the GNU groff package)
 # and are really intended only for the authors' use in creating non-Unix
 # documentation files (which are provided with both source and binary
-# distributions).  We should probably add a ".1.doc" rule for more generic
+# distributions).  We should probably add a ".1.txt" rule for more generic
 # systems...
 
-funzip.doc:	unix/funzip.1
-	nroff -Tascii -man unix/funzip.1 | col -b | uniq | expand > $@
+funzip.txt:	man/funzip.1
+	nroff -Tascii -man man/funzip.1 | col -b | uniq | expand > $@
 
-unzip.doc:	unix/unzip.1
-	nroff -Tascii -man unix/unzip.1 | col -b | uniq | expand > $@
+unzip.txt:	man/unzip.1
+	nroff -Tascii -man man/unzip.1 | col -b | uniq | expand > $@
 
-unzipsfx.doc:	unix/unzipsfx.1
-	nroff -Tascii -man unix/unzipsfx.1 | col -b | uniq | expand > $@
+unzipsfx.txt:	man/unzipsfx.1
+	nroff -Tascii -man man/unzipsfx.1 | col -b | uniq | expand > $@
 
-zipgrep.doc:	unix/zipgrep.1
-	nroff -Tascii -man unix/zipgrep.1 | col -b | uniq | expand > $@
+zipgrep.txt:	man/zipgrep.1
+	nroff -Tascii -man man/zipgrep.1 | col -b | uniq | expand > $@
 
-zipinfo.doc:	unix/zipinfo.1
-	nroff -Tascii -man unix/zipinfo.1 | col -b | uniq | expand > $@
+zipinfo.txt:	man/zipinfo.1
+	nroff -Tascii -man man/zipinfo.1 | col -b | uniq | expand > $@
 
 
 all:		generic_msg generic
@@ -297,12 +299,22 @@ process$O:	process.c $(UNZIP_H)
 ttyio$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h
 unreduce$O:	unreduce.c $(UNZIP_H)
 unshrink$O:	unshrink.c $(UNZIP_H)
-unzip$O:	unzip.c $(UNZIP_H) crypt.h version.h consts.h
+unzip$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h
 zipinfo$O:	zipinfo.c $(UNZIP_H)
 
-crypt_$O:	crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h	# funzip only
+unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h unzvers.h consts.h	# unzipsfx only
+	-$(CP) unzip.c unzipsfx.c
+	$(CC) -c $(CF) -DSFX unzipsfx.c
+	$(RM) unzipsfx.c
+
+crctab_$O:	crctab.c $(UNZIP_H) zip.h
+	-$(CP) crctab.c crctab_.c
+	$(CC) -c $(CF) -DSFX crctab_.c
+	$(RM) crctab_.c
+
+crypt_$O:	crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h	# unzipsfx only
 	-$(CP) crypt.c crypt_.c
-	$(CC) -c $(CF) -DFUNZIP crypt_.c
+	$(CC) -c $(CF) -DSFX crypt_.c
 	$(RM) crypt_.c
 
 extract_$O:	extract.c $(UNZIP_H) crypt.h			# unzipsfx only
@@ -310,20 +322,57 @@ extract_$O:	extract.c $(UNZIP_H) crypt.h			# unzipsfx only
 	$(CC) -c $(CF) -DSFX extract_.c
 	$(RM) extract_.c
 
-globals_$O:	globals.c $(UNZIP_H)				# funzip only
+fileio_$O:	fileio.c $(UNZIP_H) crypt.h ttyio.h ebcdic.h
+	-$(CP) fileio.c fileio_.c
+	$(CC) -c $(CF) -DSFX fileio_.c
+	$(RM) fileio_.c
+
+globals_$O:	globals.c $(UNZIP_H)				# unzipsfx only
 	-$(CP) globals.c globals_.c
-	$(CC) -c $(CF) -DFUNZIP globals_.c
+	$(CC) -c $(CF) -DSFX globals_.c
 	$(RM) globals_.c
 
-inflate_$O:	inflate.c inflate.h $(UNZIP_H) crypt.h		# funzip only
+inflate_$O:	inflate.c inflate.h $(UNZIP_H) crypt.h		# unzipsfx only
 	-$(CP) inflate.c inflate_.c
-	$(CC) -c $(CF) -DFUNZIP inflate_.c
+	$(CC) -c $(CF) -DSFX inflate_.c
 	$(RM) inflate_.c
 
-ttyio_$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h	# funzip only
+match_$O:	match.c $(UNZIP_H)				# unzipsfx only
+	-$(CP) match.c match_.c
+	$(CC) -c $(CF) -DSFX match_.c
+	$(RM) match_.c
+
+process_$O:	process.c $(UNZIP_H)				# unzipsfx only
+	-$(CP) process.c process_.c
+	$(CC) -c $(CF) -DSFX process_.c
+	$(RM) process_.c
+
+ttyio_$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h	# unzipsfx only
 	-$(CP) ttyio.c ttyio_.c
-	$(CC) -c $(CF) -DFUNZIP ttyio_.c
+	$(CC) -c $(CF) -DSFX ttyio_.c
 	$(RM) ttyio_.c
+
+
+cryptf$O:	crypt.c $(UNZIP_H) zip.h crypt.h ttyio.h	# funzip only
+	-$(CP) crypt.c cryptf.c
+	$(CC) -c $(CF) -DFUNZIP cryptf.c
+	$(RM) cryptf.c
+
+globalsf$O:	globals.c $(UNZIP_H)				# funzip only
+	-$(CP) globals.c globalsf.c
+	$(CC) -c $(CF) -DFUNZIP globalsf.c
+	$(RM) globalsf.c
+
+inflatef$O:	inflate.c inflate.h $(UNZIP_H) crypt.h		# funzip only
+	-$(CP) inflate.c inflatef.c
+	$(CC) -c $(CF) -DFUNZIP inflatef.c
+	$(RM) inflatef.c
+
+ttyiof$O:	ttyio.c $(UNZIP_H) zip.h crypt.h ttyio.h	# funzip only
+	-$(CP) ttyio.c ttyiof.c
+	$(CC) -c $(CF) -DFUNZIP ttyiof.c
+	$(RM) ttyiof.c
+
 
 # optional assembler replacements
 crc_i86$O:	msdos/crc_i86.asm				# 16bit only
@@ -340,7 +389,7 @@ crc_sysv$O:	crc_i386.S					# 32bit, SysV AS
 	$(AS) -o $@ crc_i386.s
 	$(RM) crc_i386.s
 
-msdos$O:	msdos/msdos.c $(UNZIP_H) version.h		# DOS only
+msdos$O:	msdos/msdos.c $(UNZIP_H) unzvers.h		# DOS only
 	$(CC) -c $(CF) msdos/msdos.c
 
 msdos_$O:	msdos/msdos.c $(UNZIP_H)			# DOS unzipsfx
@@ -351,13 +400,7 @@ msdos_$O:	msdos/msdos.c $(UNZIP_H)			# DOS unzipsfx
 #os2$O:		os2/os2.c $(UNZIP_H)				# OS/2 only
 #	$(CC) -c $(CF) os2/os2.c
 
-
-process_$O:	process.c $(UNZIP_H)				# unzipsfx only
-	-$(CP) process.c process_.c
-	$(CC) -c $(CF) -DSFX process_.c
-	$(RM) process_.c
-
-unix$O:		unix/unix.c $(UNZIP_H) version.h		# Unix only
+unix$O:		unix/unix.c $(UNZIP_H) unzvers.h		# Unix only
 	$(CC) -c $(CF) unix/unix.c
 
 unix_$O:	unix/unix.c $(UNZIP_H)				# Unix unzipsfx
@@ -365,13 +408,8 @@ unix_$O:	unix/unix.c $(UNZIP_H)				# Unix unzipsfx
 	$(CC) -c $(CF) -DSFX unix_.c
 	$(RM) unix_.c
 
-unix.pic.o:	unix/unix.c $(UNZIP_H) version.h		# Unix shlib
+unix.pic.o:	unix/unix.c $(UNZIP_H) unzvers.h		# Unix shlib
 	$(CC) -c $(CF) -o $@ unix/unix.c
-
-unzipsfx$O:	unzip.c $(UNZIP_H) crypt.h version.h consts.h	# unzipsfx only
-	-$(CP) unzip.c unzipsfx.c
-	$(CC) -c $(CF) -DSFX unzipsfx.c
-	$(RM) unzipsfx.c
 
 
 unix_make:
@@ -412,16 +450,16 @@ svr4package:	unzips
 
 install:	$(MANS)
 	-$(INSTALL_D) $(BINDIR)
-	$(INSTALL) $(UNZIPS) $(BINDIR)
+	$(INSTALL_PROGRAM) $(UNZIPS) $(BINDIR)
 	$(INSTALL) unix/zipgrep $(BINDIR)
 	$(RM) $(BINDIR)/zipinfo$E
 	$(LN) $(BINDIR)/unzip$E $(BINDIR)/zipinfo$E
 	-$(INSTALL_D) $(MANDIR)
-	$(INSTALL) unix/funzip.1 $(MANDIR)/funzip.$(manext)
-	$(INSTALL) unix/unzip.1 $(MANDIR)/unzip.$(manext)
-	$(INSTALL) unix/unzipsfx.1 $(MANDIR)/unzipsfx.$(manext)
-	$(INSTALL) unix/zipgrep.1 $(MANDIR)/zipgrep.$(manext)
-	$(INSTALL) unix/zipinfo.1 $(MANDIR)/zipinfo.$(manext)
+	$(INSTALL) man/funzip.1 $(MANDIR)/funzip.$(manext)
+	$(INSTALL) man/unzip.1 $(MANDIR)/unzip.$(manext)
+	$(INSTALL) man/unzipsfx.1 $(MANDIR)/unzipsfx.$(manext)
+	$(INSTALL) man/zipgrep.1 $(MANDIR)/zipgrep.$(manext)
+	$(INSTALL) man/zipinfo.1 $(MANDIR)/zipinfo.$(manext)
 	$(CHMOD) $(BINPERMS) $(INSTALLEDBIN)
 	$(CHMOD) $(MANPERMS) $(INSTALLEDMAN)
 
@@ -541,7 +579,7 @@ generic_shlib:	unix_make
 #----------------------------------------------------------------------------
 
 386i:		unzips	# sun386i, SunOS 4.0.2
-3Bx:		unzips	# AT&T 3B2/1000-80; should work on any WE32XXX machine
+#3Bx:		unzips	# AT&T 3B2/1000-80; should work on any WE32XXX machine
 #aix_rt:		unzips	# IBM RT 6150 under AIX 2.2.1
 bull:		unzips	# Bull DPX/2, BOS 2.00.45 (doesn't require -Xk switch)
 convex:		unzips	# Convex C-120 and C-210 (-O is enough; -ext is default)
@@ -785,12 +823,28 @@ linux_shlibz:	unix_make
 
 # LynxOS-x86 2.3.0 and newer, a real-time BSD-like OS; uses gcc.
 lynx:		unix_make
-	$(MAKE) unzips CC=gcc CF="$(CF) -DLynx -DLYNX -DBSD"
+	$(MAKE) unzips CC=gcc CF="$(CF) -DLynx -DLYNX -DBSD -DUNIX"
+
+# Macintosh MacOS X (Unix-compatible enviroment), using standard compiler
+macosx:	unix_make
+	$(MAKE) unzips CF="-O3 -Wall -I. -DBSD -DUNIX $(LOC)" LF2=""
+	$(STRIP) $(UNZIPS)
+
+# Macintosh MacOS X (Unix-compatible enviroment), using gcc
+macosx_gcc:	unix_make
+	$(MAKE) unzips CC=gcc CF="-O3 -Wall -I. -DBSD -DUNIX $(LOC)" LF2=""
+	$(STRIP) $(UNZIPS)
 
 # Minix 1.5 PC for the 386.  Invoke as is to use default cc, or as "make
 # minix CC=gcc" to use gcc.  Try "make linux" if you have a working termios.h.
 minix:		unix_make
 	$(MAKE) unzips CF="$(CF) -DMINIX -DSHORT_NAMES" CC=$(CC) LD=$(CC)
+
+# MPE/iX, the Unix variant for HP 3000 systems.
+mpeix:		unix_make
+	$(MAKE) unzips CC=c89\
+	 CF="$(CF) -DUNIX -D_POSIX_SOURCE -DHAVE_TERMIOS_H -DPASSWD_FROM_STDIN -DNO_PARAM_H"\
+	 LF2=-lbsd CP=cp LN="ln -s"
 
 # NeXT info.
 next:
@@ -825,8 +879,11 @@ nextfat:	unix_make
 
 # IBM OS/390 (formerly MVS) compiled under "OpenEdition" shell
 os390:		unix_make
-	make -f unix/Makefile unzips \
-	 CF="$(CF) -DSYSV -DUNIX -DOS390 -DEBCDIC -DNO_PARAM_H" LF2=""
+	set -x; \
+	$(MAKE) -f unix/Makefile unzips \
+	 CC=c89 LD="\$$(CC) -Wl,EDIT=NO" \
+	 CF="$(CF) -DSYSV -DUNIX -DOS390 -DEBCDIC -DNO_PARAM_H \
+	 -D_ALL_SOURCE $(HOST_VERSINFO)" LF2=""
 
 # Sequent Symmetry running Dynix/ptx (sort of SysV.3):  needs to link
 # with libseq to get symlink().

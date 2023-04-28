@@ -1,3 +1,11 @@
+/*
+  Copyright (c) 1990-2002 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in zip.h) for terms of use.
+  If, for some reason, both of these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+*/
 /*---------------------------------------------------------------------------
 
   os2.c
@@ -11,6 +19,7 @@
   it is in the public domain.
 
   Contains:  GetCountryInfo()
+             SetFileSize()
              GetFileTime()
              SetFileTime()              (TIMESTAMP only)
              stamp_file()               (TIMESTAMP only)
@@ -38,10 +47,13 @@
              check_for_newer()
              dateformat()
              version()
+             zcalloc()                      (16-bit, only)
+             zcfree()                       (16-bit, only)
              InitNLS()
              IsUpperNLS()
              ToLowerNLS()
              StringLower()
+             screensize()
              DebugMalloc()
 
   ---------------------------------------------------------------------------*/
@@ -77,33 +89,52 @@ static int   SetLongNameEA      OF((char *name, char *longname));
 static void  InitNLS            OF((void));
 
 
+#ifdef ACORN_FTYPE_NFS
+/* Acorn bits for NFS filetyping */
+typedef struct {
+  uch ID[2];
+  uch size[2];
+  uch ID_2[4];
+  uch loadaddr[4];
+  uch execaddr[4];
+  uch attr[4];
+} RO_extra_block;
+
+#endif /* ACORN_FTYPE_NFS */
+
+
 /*****************************/
 /*  Strings used in os2.c  */
 /*****************************/
 
 #ifndef SFX
-  static char Far CantAllocateWildcard[] =
+  static ZCONST char Far CantAllocateWildcard[] =
     "warning:  cannot allocate wildcard buffers\n";
 #endif
-static char Far Creating[] = "   creating: %-22s ";
-static char Far ConversionFailed[] = "mapname:  conversion of %s failed\n";
-static char Far Labelling[] = "labelling %c: %-22s\n";
-static char Far ErrSetVolLabel[] = "mapname:  error setting volume label\n";
-static char Far PathTooLong[] = "checkdir error:  path too long: %s\n";
-static char Far CantCreateDir[] = "checkdir error:  cannot create %s\n\
+static ZCONST char Far WarnDirTraversSkip[] =
+  "warning:  skipped \"../\" path component(s) in %s\n";
+static ZCONST char Far Creating[] = "   creating: %-22s ";
+static ZCONST char Far ConversionFailed[] =
+  "mapname:  conversion of %s failed\n";
+static ZCONST char Far Labelling[] = "labelling %c: %-22s\n";
+static ZCONST char Far ErrSetVolLabel[] =
+  "mapname:  error setting volume label\n";
+static ZCONST char Far PathTooLong[] = "checkdir error:  path too long: %s\n";
+static ZCONST char Far CantCreateDir[] = "checkdir error:  cannot create %s\n\
                  unable to process %s.\n";
-static char Far DirIsntDirectory[] =
+static ZCONST char Far DirIsntDirectory[] =
   "checkdir error:  %s exists but is not directory\n\
                  unable to process %s.\n";
-static char Far PathTooLongTrunc[] =
+static ZCONST char Far PathTooLongTrunc[] =
   "checkdir warning:  path too long; truncating\n                   %s\n\
                 -> %s\n";
 #if (!defined(SFX) || defined(SFX_EXDIR))
-   static char Far CantCreateExtractDir[] =
+   static ZCONST char Far CantCreateExtractDir[] =
      "checkdir:  cannot create extraction directory: %s\n";
 #endif
 
-#ifndef __EMX__
+#ifndef __GNUC__
+   /* all supported non-gcc compilers provide MSC/DOS style mkdir() */
 #  if (_MSC_VER >= 600) || defined(__IBMC__)
 #    include <direct.h>          /* have special MSC/IBM C mkdir prototype */
 #  else                          /* own prototype because dir.h conflicts? */
@@ -111,6 +142,7 @@ static char Far PathTooLongTrunc[] =
 #  endif
 #  define MKDIR(path,mode)   mkdir(path)
 #else
+    /* EMX and hopefully all other gcc ports support POSIX style mkdir() */
 #  define MKDIR(path,mode)   mkdir(path,mode)
 #endif
 
@@ -249,6 +281,12 @@ int GetCountryInfo(void)
     return 0;
 
   return ctryi.fsDateFmt;
+}
+
+
+int SetFileSize(FILE *file, ulg filesize)
+{
+  return DosSetFileSize(fileno(file), (size_t)filesize) ? -1 : 0;
 }
 
 
@@ -669,7 +707,7 @@ DIR *opendir(__GPRO__ const char *name)
   if (stat(nbuf, &statb) < 0 || (statb.st_mode & S_IFMT) != S_IFDIR)
   {
     Trace((stderr, "opendir:  stat(%s) returns negative or not directory\n",
-      nbuf));
+      FnFilter1(nbuf)));
     return NULL;
   }
 
@@ -685,7 +723,7 @@ DIR *opendir(__GPRO__ const char *name)
       strcpy(nbuf+len, "\\*");
 
   /* len is no longer correct (but no longer needed) */
-  Trace((stderr, "opendir:  nbuf = [%s]\n", nbuf));
+  Trace((stderr, "opendir:  nbuf = [%s]\n", FnFilter1(nbuf)));
 
   dirp -> dd_loc = 0;
   dirp -> dd_contents = dirp -> dd_cp = NULL;
@@ -855,7 +893,7 @@ int IsFileSystemFAT(__GPRO__ ZCONST char *dir)  /* FAT / HPFS detection */
        at the moment I consider other systems to be similar to HPFS,
        i.e. support long file names and case sensitive */
 
-    if ( isalpha(dir[0]) && (dir[1] == ':') )
+    if ( isalpha((uch)dir[0]) && (dir[1] == ':') )
       nDrive = toupper(dir[0]) - '@';
     else
       DosQueryCurrentDisk(&nDrive, &lMap);
@@ -890,35 +928,35 @@ int IsFileSystemFAT(__GPRO__ ZCONST char *dir)  /* FAT / HPFS detection */
 
 char *do_wild(__G__ wildspec)
     __GDEF
-    char *wildspec;         /* only used first time on a given dir */
+    ZCONST char *wildspec;  /* only used first time on a given dir */
 {
   /* moved to os2data.h so they can be global */
 #if 0
-  static DIR *dir = NULL;
-  static char *dirname, *wildname, matchname[FILNAMSIZ];
-  static int firstcall=TRUE, have_dirname, dirnamelen;
+  static DIR *wild_dir = NULL;
+  static ZCONST char *wildname;
+  static char *dirname, matchname[FILNAMSIZ];
+  static int notfirstcall=FALSE, have_dirname, dirnamelen;
 #endif
     char *fnamestart;
     struct direct *file;
-
 
     /* Even when we're just returning wildspec, we *always* do so in
      * matchname[]--calling routine is allowed to append four characters
      * to the returned string, and wildspec may be a pointer to argv[].
      */
-    if (G.os2.firstcall) {        /* first call:  must initialize everything */
-        G.os2.firstcall = FALSE;
+    if (!G.os2.notfirstcall) {  /* first call:  must initialize everything */
+        G.os2.notfirstcall = TRUE;
 
         if (!iswild(wildspec)) {
             strcpy(G.os2.matchname, wildspec);
             G.os2.have_dirname = FALSE;
-            G.os2.dir = NULL;
+            G.os2.wild_dir = NULL;
             return G.os2.matchname;
         }
 
         /* break the wildspec into a directory part and a wildcard filename */
-        if ((G.os2.wildname = strrchr(wildspec, '/')) == NULL &&
-            (G.os2.wildname = strrchr(wildspec, ':')) == NULL) {
+        if ((G.os2.wildname = (ZCONST char *)strrchr(wildspec, '/')) == NULL &&
+            (G.os2.wildname = (ZCONST char *)strrchr(wildspec, ':')) == NULL) {
             G.os2.dirname = ".";
             G.os2.dirnamelen = 1;
             G.os2.have_dirname = FALSE;
@@ -936,16 +974,18 @@ char *do_wild(__G__ wildspec)
             G.os2.dirname[G.os2.dirnamelen] = '\0';   /* terminate for strcpy below */
             G.os2.have_dirname = TRUE;
         }
-        Trace((stderr, "do_wild:  dirname = [%s]\n", G.os2.dirname));
+        Trace((stderr, "do_wild:  dirname = [%s]\n",
+          FnFilter1(G.os2.dirname)));
 
-        if ((G.os2.dir = opendir(__G__ G.os2.dirname)) != NULL) {
+        if ((G.os2.wild_dir = opendir(__G__ G.os2.dirname)) != NULL) {
             if (G.os2.have_dirname) {
                 strcpy(G.os2.matchname, G.os2.dirname);
                 fnamestart = G.os2.matchname + G.os2.dirnamelen;
             } else
                 fnamestart = G.os2.matchname;
-            while ((file = readdir(__G__ G.os2.dir)) != NULL) {
-                Trace((stderr, "do_wild:  readdir returns %s\n", file->d_name));
+            while ((file = readdir(__G__ G.os2.wild_dir)) != NULL) {
+                Trace((stderr, "do_wild:  readdir returns %s\n",
+                  FnFilter1(file->d_name)));
                 strcpy(fnamestart, file->d_name);
                 if (strrchr(fnamestart, '.') == (char *)NULL)
                     strcat(fnamestart, ".");
@@ -961,12 +1001,13 @@ char *do_wild(__G__ wildspec)
                 }
             }
             /* if we get to here directory is exhausted, so close it */
-            closedir(G.os2.dir);
-            G.os2.dir = NULL;
+            closedir(G.os2.wild_dir);
+            G.os2.wild_dir = NULL;
         }
 #ifdef DEBUG
         else {
-            Trace((stderr, "do_wild:  opendir(%s) returns NULL\n", G.os2.dirname));
+            Trace((stderr, "do_wild:  opendir(%s) returns NULL\n",
+              FnFilter1(G.os2.dirname)));
         }
 #endif /* DEBUG */
 
@@ -977,8 +1018,8 @@ char *do_wild(__G__ wildspec)
     }
 
     /* last time through, might have failed opendir but returned raw wildspec */
-    if (G.os2.dir == NULL) {
-        G.os2.firstcall = TRUE;  /* nothing left to try--reset for new wildspec */
+    if (G.os2.wild_dir == NULL) {
+        G.os2.notfirstcall = FALSE;  /* nothing left to try--reset */
         if (G.os2.have_dirname)
             free(G.os2.dirname);
         return (char *)NULL;
@@ -993,8 +1034,9 @@ char *do_wild(__G__ wildspec)
         fnamestart = G.os2.matchname + G.os2.dirnamelen;
     } else
         fnamestart = G.os2.matchname;
-    while ((file = readdir(__G__ G.os2.dir)) != NULL) {
-        Trace((stderr, "do_wild:  readdir returns %s\n", file->d_name));
+    while ((file = readdir(__G__ G.os2.wild_dir)) != NULL) {
+        Trace((stderr, "do_wild:  readdir returns %s\n",
+          FnFilter1(file->d_name)));
         strcpy(fnamestart, file->d_name);
         if (strrchr(fnamestart, '.') == (char *)NULL)
             strcat(fnamestart, ".");
@@ -1008,9 +1050,9 @@ char *do_wild(__G__ wildspec)
         }
     }
 
-    closedir(G.os2.dir);     /* have read at least one dir entry; nothing left */
-    G.os2.dir = NULL;
-    G.os2.firstcall = TRUE;  /* reset for new wildspec */
+    closedir(G.os2.wild_dir);   /* have read at least one entry; nothing left */
+    G.os2.wild_dir = NULL;
+    G.os2.notfirstcall = FALSE; /* reset for new wildspec */
     if (G.os2.have_dirname)
         free(G.os2.dirname);
     return (char *)NULL;
@@ -1111,16 +1153,30 @@ int mapattr(__G)
  * GRR:  some or all of the following chars should be checked in either
  *       mapname (HPFS) or map2fat (FAT), depending:  ,=^+'"[]<>|\t&
  */
-                             /* return 0 if no error, 1 if caution (filename */
-int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
-    __GDEF                   /*  dir doesn't exist), 3 if error (skip file), */
-    int renamed;             /*  or 10 if out of memory (skip file) */
-{                            /*  [also IZ_VOL_LABEL, IZ_CREATED_DIR] */
+int mapname(__G__ renamed)
+    __GDEF
+    int renamed;
+/*
+ * returns:
+ *  MPN_OK          - no problem detected
+ *  MPN_INF_TRUNC   - caution (truncated filename)
+ *  MPN_INF_SKIP    - info "skip entry" (dir doesn't exist)
+ *  MPN_ERR_SKIP    - error -> skip entry
+ *  MPN_ERR_TOOLONG - error -> path is too long
+ *  MPN_NOMEM       - error (memory allocation failed) -> skip entry
+ *  [also MPN_VOL_LABEL, MPN_CREATED_DIR]
+ */
+{
     char pathcomp[FILNAMSIZ];      /* path-component buffer */
     char *pp, *cp=(char *)NULL;    /* character pointers */
     char *lastsemi=(char *)NULL;   /* pointer to last semi-colon in pathcomp */
+#ifdef ACORN_FTYPE_NFS
+    char *lastcomma=(char *)NULL;  /* pointer to last comma in pathcomp */
+    RO_extra_block *ef_spark;      /* pointer Acorn FTYPE ef block */
+#endif
     int quote = FALSE;             /* flag:  next char is literal */
-    int error = 0;
+    int killed_ddot = FALSE;       /* is set when skipping "../" pathcomp */
+    int error = MPN_OK;
     register unsigned workch;      /* hold the character being tested */
 
 
@@ -1148,7 +1204,7 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
             pathcomp[0] = '/';  /* copy the '/' and terminate */
             pathcomp[1] = '\0';
             ++cp;
-        } else if (isalpha(G.filename[0]) && G.filename[1] == ':') {
+        } else if (isalpha((uch)G.filename[0]) && G.filename[1] == ':') {
             G.os2.renamed_fullpath = TRUE;
             pp = pathcomp;
             *pp++ = *cp++;      /* copy the "d:" (+ '/', possibly) */
@@ -1188,10 +1244,26 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
             switch (workch) {
             case '/':             /* can assume -j flag not given */
                 *pp = '\0';
-                if ((error = checkdir(__G__ pathcomp, APPEND_DIR)) > 1)
+                if (((error = checkdir(__G__ pathcomp, APPEND_DIR)) & MPN_MASK)
+                    > MPN_INF_TRUNC)
                     return error;
                 pp = pathcomp;    /* reset conversion buffer for next piece */
                 lastsemi = (char *)NULL; /* leave directory semi-colons alone */
+                break;
+
+            case '.':
+                if (pp == pathcomp) {   /* nothing appended yet... */
+                    if (*cp == '/') {   /* don't bother appending "./" to */
+                        ++cp;           /*  the path: skip behind the '/' */
+                        break;
+                    } else if (!uO.ddotflag && *cp == '.' && cp[1] == '/') {
+                        /* "../" dir traversal detected */
+                        cp += 2;        /*  skip over behind the '/' */
+                        killed_ddot = TRUE; /*  set "show message" flag */
+                        break;
+                    }
+                }
+                *pp++ = '.';
                 break;
 
             case ':':
@@ -1202,6 +1274,13 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
                 lastsemi = pp;    /* remove VMS version later... */
                 *pp++ = ';';      /*  but keep semicolon for now */
                 break;
+
+#ifdef ACORN_FTYPE_NFS
+            case ',':             /* NFS filetype extension */
+                lastcomma = pp;
+                *pp++ = ',';      /* keep for now; may need to remove */
+                break;            /*  later, if requested */
+#endif
 
             case '\026':          /* control-V quote for special chars */
                 quote = TRUE;     /* set flag for next character */
@@ -1222,15 +1301,12 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
 
     } /* end while loop */
 
-    *pp = '\0';                   /* done with pathcomp:  terminate it */
-
-    /* if not saving them, remove VMS version numbers (appended "###") */
-    if (!uO.V_flag && lastsemi) {
-        pp = lastsemi + 1;        /* semi-colon was kept:  expect #s after */
-        while (isdigit((uch)(*pp)))
-            ++pp;
-        if (*pp == '\0')          /* only digits between ';' and end:  nuke */
-            *lastsemi = '\0';
+    /* Show warning when stripping insecure "parent dir" path components */
+    if (killed_ddot && QCOND2) {
+        Info(slide, 0, ((char *)slide, LoadFarString(WarnDirTraversSkip),
+          FnFilter1(G.filename)));
+        if (!(error & ~MPN_MASK))
+            error = (error & MPN_MASK) | PK_WARN;
     }
 
 /*---------------------------------------------------------------------------
@@ -1242,16 +1318,17 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
     if (G.filename[G.os2.fnlen-1] == '/') {
         checkdir(__G__ G.filename, GETPATH);
         if (G.os2.created_dir) {
-            if (!uO.qflag)
+            if (QCOND2)
                 Info(slide, 0, ((char *)slide, LoadFarString(Creating),
-                  G.filename));
+                  FnFilter1(G.filename)));
             if (G.extra_field) { /* zipfile extra field has extended attribs */
                 int err = EvalExtraFields(__G__ G.filename, G.extra_field,
                                           G.lrec.extra_field_length);
 
                 if (err == IZ_EF_TRUNC) {
                     if (uO.qflag)
-                        Info(slide, 1, ((char *)slide, "%-22s ", G.filename));
+                        Info(slide, 1, ((char *)slide, "%-22s ",
+                          FnFilter1(G.filename)));
                     Info(slide, 1, ((char *)slide, LoadFarString(TruncEAs),
                       makeword(G.extra_field+2)-10, "\n"));
                 } else if (!uO.qflag)
@@ -1262,15 +1339,17 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
             /* set date/time stamps */
             SetPathAttrTimes(__G__ G.pInfo->file_attr & ~A_ARCHIVE, 1);
 
-            return IZ_CREATED_DIR;   /* dir time already set */
+            /* dir time already set */
+            return (error & ~MPN_MASK) | MPN_CREATED_DIR;
 
-        } else if (G.extra_field && uO.overwrite_all) {
+        } else if (G.extra_field && IS_OVERWRT_ALL) {
             /* overwrite EAs of existing directory since user requested it */
             int err = EvalExtraFields(__G__ G.filename, G.extra_field,
                                       G.lrec.extra_field_length);
 
             if (err == IZ_EF_TRUNC) {
-                Info(slide, 0x421, ((char *)slide, "%-22s ", G.filename));
+                Info(slide, 0x421, ((char *)slide, "%-22s ",
+                  FnFilter1(G.filename)));
                 Info(slide, 0x401, ((char *)slide, LoadFarString(TruncEAs),
                   makeword(G.extra_field+2)-10, "\n"));
             }
@@ -1278,19 +1357,51 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
             /* set date/time stamps (dirs only have creation times) */
             SetPathAttrTimes(__G__ G.pInfo->file_attr & ~A_ARCHIVE, 1);
         }
-        return 2;   /* dir existed already; don't look for data to extract */
+        /* dir existed already; don't look for data to extract */
+        return (error & ~MPN_MASK) | MPN_INF_SKIP;
     }
+
+    *pp = '\0';                   /* done with pathcomp:  terminate it */
+
+    /* if not saving them, remove VMS version numbers (appended "###") */
+    if (!uO.V_flag && lastsemi) {
+        pp = lastsemi + 1;        /* semi-colon was kept:  expect #s after */
+        while (isdigit((uch)(*pp)))
+            ++pp;
+        if (*pp == '\0')          /* only digits between ';' and end:  nuke */
+            *lastsemi = '\0';
+    }
+
+#ifdef ACORN_FTYPE_NFS
+    /* translate Acorn filetype information if asked to do so */
+    if (uO.acorn_nfs_ext &&
+        (ef_spark = (RO_extra_block *)
+                    getRISCOSexfield(G.extra_field, G.lrec.extra_field_length))
+        != (RO_extra_block *)NULL)
+    {
+        /* file *must* have a RISC OS extra field */
+        long ft = (long)makelong((ef_spark->loadaddr);
+        /*32-bit*/
+        if (lastcomma) {
+            pp = lastcomma + 1;
+            while (isxdigit((uch)(*pp))) ++pp;
+            if (pp == lastcomma+4 && *pp == '\0') *lastcomma='\0'; /* nuke */
+        }
+        if ((ft & 1<<31)==0) ft=0x000FFD00;
+        sprintf(pathcomp+strlen(pathcomp), ",%03x", (int)(ft>>8) & 0xFFF);
+    }
+#endif /* ACORN_FTYPE_NFS */
 
     if (*pathcomp == '\0') {
         Info(slide, 1, ((char *)slide, LoadFarString(ConversionFailed),
-          G.filename));
-        return 3;
+          FnFilter1(G.filename)));
+        return (error & ~MPN_MASK) | MPN_ERR_SKIP;
     }
 
     checkdir(__G__ pathcomp, APPEND_NAME);  /* returns 1 if truncated: care? */
     checkdir(__G__ G.filename, GETPATH);
     Trace((stderr, "mapname returns with filename = [%s] (error = %d)\n\n",
-      G.filename, error));
+      FnFilter1(G.filename), error));
 
     if (G.pInfo->vollabel) {    /* set the volume label now */
         VOLUMELABEL FSInfoBuf;
@@ -1301,14 +1412,15 @@ int mapname(__G__ renamed)   /*  truncated), 2 if warning (skip file because */
 
         if (!uO.qflag)
             Info(slide, 0, ((char *)slide, LoadFarString(Labelling),
-              (char)(G.os2.nLabelDrive + 'a' - 1), G.filename));
+              (char)(G.os2.nLabelDrive + 'a' - 1), FnFilter1(G.filename)));
         if (DosSetFSInfo(G.os2.nLabelDrive, FSIL_VOLSER, (PBYTE)&FSInfoBuf,
                          sizeof(VOLUMELABEL)))
         {
             Info(slide, 1, ((char *)slide, LoadFarString(ErrSetVolLabel)));
-            return 3;
+            return (error & ~MPN_MASK) | MPN_ERR_SKIP;
         }
-        return 2;   /* success:  skip the "extraction" quietly */
+        /* success:  skip the "extraction" quietly */
+        return (error & ~MPN_MASK) | MPN_INF_SKIP;
     }
 
     return error;
@@ -1328,12 +1440,14 @@ int checkdir(__G__ pathcomp, flag)
     char *pathcomp;
     int flag;
 /*
- * returns:  1 - (on APPEND_NAME) truncated filename
- *           2 - path doesn't exist, not allowed to create
- *           3 - path doesn't exist, tried to create and failed; or
- *               path exists and is not a directory, but is supposed to be
- *           4 - path is too long
- *          10 - can't allocate memory for filename buffers
+ * returns:
+ *  MPN_OK          - no problem detected
+ *  MPN_INF_TRUNC   - (on APPEND_NAME) truncated filename
+ *  MPN_INF_SKIP    - path doesn't exist, not allowed to create
+ *  MPN_ERR_SKIP    - path doesn't exist, tried to create and failed; or path
+ *                    exists and is not a directory, but is supposed to be
+ *  MPN_ERR_TOOLONG - path is too long
+ *  MPN_NOMEM       - can't allocate memory for filename buffers
  */
 {
   /* moved to os2data.h so they can be global */
@@ -1361,7 +1475,7 @@ int checkdir(__G__ pathcomp, flag)
         char *p = pathcomp;
         int longdirEA, too_long=FALSE;
 
-        Trace((stderr, "appending dir segment [%s]\n", pathcomp));
+        Trace((stderr, "appending dir segment [%s]\n", FnFilter1(pathcomp)));
         while ((*G.os2.endHPFS = *p++) != '\0')     /* copy to HPFS filename */
             ++G.os2.endHPFS;
         if (IsFileNameValid(G.os2.buildpathHPFS)) {
@@ -1392,21 +1506,24 @@ int checkdir(__G__ pathcomp, flag)
             if (!G.create_dirs) { /* told not to create (freshening) */
                 free(G.os2.buildpathHPFS);
                 free(G.os2.buildpathFAT);
-                return 2;         /* path doesn't exist:  nothing to do */
+                /* path doesn't exist:  nothing to do */
+                return MPN_INF_SKIP;
             }
             if (too_long) {   /* GRR:  should allow FAT extraction w/o EAs */
                 Info(slide, 1, ((char *)slide, LoadFarString(PathTooLong),
-                  G.os2.buildpathHPFS));
+                  FnFilter1(G.os2.buildpathHPFS)));
                 free(G.os2.buildpathHPFS);
                 free(G.os2.buildpathFAT);
-                return 4;         /* no room for filenames:  fatal */
+                /* no room for filenames:  fatal */
+                return MPN_ERR_TOOLONG;
             }
             if (MKDIR(G.os2.buildpathFAT, 0777) == -1) {   /* create the directory */
                 Info(slide, 1, ((char *)slide, LoadFarString(CantCreateDir),
-                  G.os2.buildpathFAT, G.filename));
+                  FnFilter2(G.os2.buildpathFAT), FnFilter1(G.filename)));
                 free(G.os2.buildpathHPFS);
                 free(G.os2.buildpathFAT);
-                return 3;      /* path didn't exist, tried to create, failed */
+                /* path didn't exist, tried to create, failed */
+                return MPN_ERR_SKIP;
             }
             G.os2.created_dir = TRUE;
             /* only set EA if creating directory */
@@ -1420,24 +1537,28 @@ int checkdir(__G__ pathcomp, flag)
             }
         } else if (!S_ISDIR(G.statbuf.st_mode)) {
             Info(slide, 1, ((char *)slide, LoadFarString(DirIsntDirectory),
-              G.os2.buildpathFAT, G.filename));
+              FnFilter2(G.os2.buildpathFAT), FnFilter1(G.filename)));
             free(G.os2.buildpathHPFS);
             free(G.os2.buildpathFAT);
-            return 3;          /* path existed but wasn't dir */
+            /* path existed but wasn't dir */
+            return MPN_ERR_SKIP;
         }
         if (too_long) {
             Info(slide, 1, ((char *)slide, LoadFarString(PathTooLong),
-              G.os2.buildpathHPFS));
+              FnFilter1(G.os2.buildpathHPFS)));
             free(G.os2.buildpathHPFS);
             free(G.os2.buildpathFAT);
-            return 4;         /* no room for filenames:  fatal */
+            /* no room for filenames:  fatal */
+            return MPN_ERR_TOOLONG;
         }
         *G.os2.endHPFS++ = '/';
         *G.os2.endFAT++ = '/';
         *G.os2.endHPFS = *G.os2.endFAT = '\0';
-        Trace((stderr, "buildpathHPFS now = [%s]\n", G.os2.buildpathHPFS));
-        Trace((stderr, "buildpathFAT now =  [%s]\n", G.os2.buildpathFAT));
-        return 0;
+        Trace((stderr, "buildpathHPFS now = [%s]\n",
+          FnFilter1(G.os2.buildpathHPFS)));
+        Trace((stderr, "buildpathFAT now =  [%s]\n",
+          FnFilter1(G.os2.buildpathFAT)));
+        return MPN_OK;
 
     } /* end if (FUNCTION == APPEND_DIR) */
 
@@ -1448,13 +1569,15 @@ int checkdir(__G__ pathcomp, flag)
   ---------------------------------------------------------------------------*/
 
     if (FUNCTION == GETPATH) {
-        Trace((stderr, "getting and freeing FAT path [%s]\n", G.os2.buildpathFAT));
-        Trace((stderr, "freeing HPFS path [%s]\n", G.os2.buildpathHPFS));
+        Trace((stderr, "getting and freeing FAT path [%s]\n",
+          FnFilter1(G.os2.buildpathFAT)));
+        Trace((stderr, "freeing HPFS path [%s]\n",
+          FnFilter1(G.os2.buildpathHPFS)));
         strcpy(pathcomp, G.os2.buildpathFAT);
         free(G.os2.buildpathFAT);
         free(G.os2.buildpathHPFS);
         G.os2.buildpathHPFS = G.os2.buildpathFAT = G.os2.endHPFS = G.os2.endFAT = (char *)NULL;
-        return 0;
+        return MPN_OK;
     }
 
 /*---------------------------------------------------------------------------
@@ -1464,16 +1587,16 @@ int checkdir(__G__ pathcomp, flag)
 
     if (FUNCTION == APPEND_NAME) {
         char *p = pathcomp;
-        int error = 0;
+        int error = MPN_OK;
 
-        Trace((stderr, "appending filename [%s]\n", pathcomp));
+        Trace((stderr, "appending filename [%s]\n", FnFilter1(pathcomp)));
         while ((*G.os2.endHPFS = *p++) != '\0') {    /* copy to HPFS filename */
             ++G.os2.endHPFS;
             if ((G.os2.endHPFS-G.os2.buildpathHPFS) >= FILNAMSIZ) {
                 *--G.os2.endHPFS = '\0';
                 Info(slide, 1, ((char *)slide, LoadFarString(PathTooLongTrunc),
-                  G.filename, G.os2.buildpathHPFS));
-                error = 1;   /* filename truncated */
+                  FnFilter1(G.filename), FnFilter2(G.os2.buildpathHPFS)));
+                error = MPN_INF_TRUNC;  /* filename truncated */
             }
         }
 
@@ -1495,13 +1618,14 @@ int checkdir(__G__ pathcomp, flag)
                 Info(slide, 1, ((char *)slide,
                  "checkdir warning:  cannot save longname EA: out of memory\n"));
                 G.os2.longnameEA = FALSE;
-                error = 1;   /* can't set .LONGNAME extended attribute */
+                /* can't set .LONGNAME extended attribute */
+                error = MPN_INF_TRUNC;
             } else           /* used and freed in close_outfile() */
                 strcpy(G.os2.lastpathcomp, pathcomp);
             map2fat(pathcomp, &G.os2.endFAT);  /* map, put in FAT fn, update endFAT */
         }
         Trace((stderr, "buildpathHPFS: %s\nbuildpathFAT:  %s\n",
-          G.os2.buildpathHPFS, G.os2.buildpathFAT));
+          FnFilter1(G.os2.buildpathHPFS), FnFilter2(G.os2.buildpathFAT)));
 
         return error;  /* could check for existence, prompt for new name... */
 
@@ -1515,11 +1639,23 @@ int checkdir(__G__ pathcomp, flag)
 
     if (FUNCTION == INIT) {
         Trace((stderr, "initializing buildpathHPFS and buildpathFAT to "));
-        if ((G.os2.buildpathHPFS = (char *)malloc(G.os2.fnlen+G.os2.rootlen+1)) == (char *)NULL)
-            return 10;
-        if ((G.os2.buildpathFAT = (char *)malloc(G.os2.fnlen+G.os2.rootlen+1)) == (char *)NULL) {
+#ifdef ACORN_FTYPE_NFS
+        if ((G.os2.buildpathHPFS = (char *)malloc(G.os2.fnlen+G.os2.rootlen+
+                                                  (uO.acorn_nfs_ext ? 5 : 1)))
+#else
+        if ((G.os2.buildpathHPFS = (char *)malloc(G.os2.fnlen+G.os2.rootlen+1))
+#endif
+            == (char *)NULL)
+            return MPN_NOMEM;
+#ifdef ACORN_FTYPE_NFS
+        if ((G.os2.buildpathFAT = (char *)malloc(G.os2.fnlen+G.os2.rootlen+
+                                                 (uO.acorn_nfs_ext ? 5 : 1)))
+#else
+        if ((G.os2.buildpathFAT = (char *)malloc(G.os2.fnlen+G.os2.rootlen+1))
+#endif
+            == (char *)NULL) {
             free(G.os2.buildpathHPFS);
-            return 10;
+            return MPN_NOMEM;
         }
         if (G.pInfo->vollabel) {  /* use root or renamed path, but don't store */
 /* GRR:  for network drives, do strchr() and return IZ_VOL_LABEL if not [1] */
@@ -1537,7 +1673,7 @@ int checkdir(__G__ pathcomp, flag)
                 (uO.volflag == 1 && !isfloppy(G.os2.nLabelDrive))) { /* -$:  no fixed */
                 free(G.os2.buildpathHPFS);
                 free(G.os2.buildpathFAT);
-                return IZ_VOL_LABEL;   /* skipping with message */
+                return MPN_VOL_LABEL;   /* skipping with message */
             }
             *G.os2.buildpathHPFS = '\0';
         } else if (G.os2.renamed_fullpath)   /* pathcomp = valid data */
@@ -1552,8 +1688,8 @@ int checkdir(__G__ pathcomp, flag)
             ++G.os2.endFAT;
             ++G.os2.endHPFS;
         }
-        Trace((stderr, "[%s]\n", G.os2.buildpathHPFS));
-        return 0;
+        Trace((stderr, "[%s]\n", FnFilter1(G.os2.buildpathHPFS)));
+        return MPN_OK;
     }
 
 /*---------------------------------------------------------------------------
@@ -1569,58 +1705,72 @@ int checkdir(__G__ pathcomp, flag)
 
 #if (!defined(SFX) || defined(SFX_EXDIR))
     if (FUNCTION == ROOT) {
-        Trace((stderr, "initializing root path to [%s]\n", pathcomp));
+        Trace((stderr, "initializing root path to [%s]\n",
+          FnFilter1(pathcomp)));
         if (pathcomp == (char *)NULL) {
             G.os2.rootlen = 0;
-            return 0;
+            return MPN_OK;
         }
+        if (G.os2.rootlen > 0)  /* rootpath was already set, nothing to do */
+            return MPN_OK;
         if ((G.os2.rootlen = strlen(pathcomp)) > 0) {
-            int had_trailing_pathsep=FALSE, has_drive=FALSE, xtra=2;
+            int had_trailing_pathsep=FALSE, has_drive=FALSE, add_dot=FALSE;
+            char *tmproot;
 
-            if (isalpha(pathcomp[0]) && pathcomp[1] == ':')
+            if ((tmproot = (char *)malloc(G.os2.rootlen+3)) == (char *)NULL) {
+                G.os2.rootlen = 0;
+                return MPN_NOMEM;
+            }
+            strcpy(tmproot, pathcomp);
+            if (isalpha((uch)tmproot[0]) && tmproot[1] == ':')
                 has_drive = TRUE;   /* drive designator */
-            if (pathcomp[G.os2.rootlen-1] == '/') {
-                pathcomp[--G.os2.rootlen] = '\0';
+            if (tmproot[G.os2.rootlen-1] == '/') {
+                tmproot[--G.os2.rootlen] = '\0';
                 had_trailing_pathsep = TRUE;
             }
             if (has_drive && (G.os2.rootlen == 2)) {
                 if (!had_trailing_pathsep)   /* i.e., original wasn't "x:/" */
-                    xtra = 3;      /* room for '.' + '/' + 0 at end of "x:" */
-            } else if (G.os2.rootlen > 0) {     /* need not check "x:." and "x:/" */
+                    add_dot = TRUE;    /* relative path: add '.' before '/' */
+            } else if (G.os2.rootlen > 0) {   /* need not check "x:." and "x:/" */
 #ifdef MSC      /* MSC 6.00 bug:  stat(non-existent-dir) == 0 [exists!] */
-                if (GetFileTime(pathcomp) == -1 ||
-                    SSTAT(pathcomp, &G.statbuf) || !S_ISDIR(G.statbuf.st_mode))
+                if (GetFileTime(tmproot) == -1 ||
+                    SSTAT(tmproot, &G.statbuf) || !S_ISDIR(G.statbuf.st_mode))
 #else
-                if (SSTAT(pathcomp, &G.statbuf) || !S_ISDIR(G.statbuf.st_mode))
+                if (SSTAT(tmproot, &G.statbuf) || !S_ISDIR(G.statbuf.st_mode))
 #endif
                 {   /* path does not exist */
-                    if (!G.create_dirs                 /* || iswild(pathcomp) */
+                    if (!G.create_dirs                 /* || iswild(tmproot) */
                                        ) {
+                        free(tmproot);
                         G.os2.rootlen = 0;
-                        return 2;   /* treat as stored file */
+                        return MPN_INF_SKIP;    /* treat as stored file */
                     }
-                    /* create directory (could add loop here to scan pathcomp
-                     * and create more than one level, but really necessary?) */
-                    if (MKDIR(pathcomp, 0777) == -1) {
+                    /* create directory (could add loop here scanning tmproot
+                     * to create more than one level, but really necessary?) */
+                    if (MKDIR(tmproot, 0777) == -1) {
                         Info(slide, 1, ((char *)slide,
-                          LoadFarString(CantCreateExtractDir), pathcomp));
-                        G.os2.rootlen = 0;   /* path didn't exist, tried to create, */
-                        return 3;  /* failed:  file exists, or need 2+ levels */
+                          LoadFarString(CantCreateExtractDir),
+                          FnFilter1(tmproot)));
+                        free(tmproot);
+                        G.os2.rootlen = 0;
+                        /* path didn't exist, tried to create, failed: */
+                        /* file exists, or need 2+ directory levels */
+                        return MPN_ERR_SKIP;
                     }
                 }
             }
-            if ((G.os2.rootpath = (char *)malloc(G.os2.rootlen+xtra)) == (char *)NULL) {
+            if (add_dot)                    /* had just "x:", make "x:." */
+                tmproot[G.os2.rootlen++] = '.';
+            tmproot[G.os2.rootlen++] = '/';
+            tmproot[G.os2.rootlen] = '\0';
+            if ((G.os2.rootpath = realloc(tmproot, G.os2.rootlen+1)) == NULL) {
+                free(tmproot);
                 G.os2.rootlen = 0;
-                return 10;
+                return MPN_NOMEM;
             }
-            strcpy(G.os2.rootpath, pathcomp);
-            if (xtra == 3)                  /* had just "x:", make "x:." */
-                G.os2.rootpath[G.os2.rootlen++] = '.';
-            G.os2.rootpath[G.os2.rootlen++] = '/';
-            G.os2.rootpath[G.os2.rootlen] = '\0';
-            Trace((stderr, "rootpath now = [%s]\n", G.os2.rootpath));
+            Trace((stderr, "rootpath now = [%s]\n", FnFilter1(G.os2.rootpath)));
         }
-        return 0;
+        return MPN_OK;
     }
 #endif /* !SFX || SFX_EXDIR */
 
@@ -1634,10 +1784,10 @@ int checkdir(__G__ pathcomp, flag)
             free(G.os2.rootpath);
             G.os2.rootlen = 0;
         }
-        return 0;
+        return MPN_OK;
     }
 
-    return 99;  /* should never reach */
+    return MPN_INVALID; /* should never reach */
 
 } /* end function checkdir() */
 
@@ -1887,7 +2037,8 @@ void close_outfile(__G)   /* only for extracted files, not directories */
 
         if (err == IZ_EF_TRUNC) {
             if (uO.qflag)
-                Info(slide, 1, ((char *)slide, "%-22s ", G.filename));
+                Info(slide, 1, ((char *)slide, "%-22s ",
+                  FnFilter1(G.filename)));
             Info(slide, 1, ((char *)slide, LoadFarString(TruncEAs),
               makeword(G.extra_field+2)-10, uO.qflag? "\n" : ""));
         }
@@ -2000,7 +2151,7 @@ void version(__G)
 #  ifdef __EMX__  /* __EMX__ is defined as "1" only (sigh) */
       "emx+gcc ", __VERSION__,
 #  else
-      "gcc/2 ", __VERSION__,
+      "gcc ", __VERSION__,
 #  endif
 #elif defined(__IBMC__)
       "IBM ",
@@ -2066,7 +2217,7 @@ void version(__G)
       " (16-bit)",
 #  endif
 #else
-      " 2.x/3.x (32-bit)",
+      " (32-bit)",
 #endif
 
 #ifdef __DATE__
@@ -2095,6 +2246,28 @@ void version(__G)
 
 #endif /* !SFX */
 
+
+
+#ifdef MY_ZCALLOC       /* Special zcalloc function for MEMORY16 (MSDOS/OS2) */
+
+#if defined(MSC) || defined(__WATCOMC__)
+#if (!defined(_MSC_VER) || (_MSC_VER < 700))
+#  define _halloc  halloc
+#  define _hfree   hfree
+#endif
+
+zvoid far *zcalloc (unsigned items, unsigned size)
+{
+    return (zvoid far *)_halloc((long)items, size);
+}
+
+zvoid zcfree (zvoid far *ptr)
+{
+    _hfree((void huge *)ptr);
+}
+#endif /* MSC || __WATCOMC__ */
+
+#endif /* MY_ZCALLOC */
 
 
 /* This table can be static because it is pseudo-constant */
@@ -2152,6 +2325,26 @@ char *StringLower(char *szArg)
 }
 
 
+#ifdef MORE
+int screensize(int *tt_rows, int *tt_cols)
+{
+#ifdef __EMX__
+  int dst[2];
+  _scrsize(dst);
+  if (tt_rows != NULL) *tt_rows = dst[1];
+  if (tt_cols != NULL) *tt_cols = dst[0];
+#else
+  VIOMODEINFO vmi;
+  vmi.cb = sizeof(vmi);
+  VioGetMode(&vmi, 0);
+  if (tt_rows != NULL) *tt_rows = vmi.row;
+  if (tt_cols != NULL) *tt_cols = vmi.col;
+#endif
+  return 0;
+}
+#endif /* MORE */
+
+
 #if defined(__IBMC__) && defined(__DEBUG_ALLOC__)
 void DebugMalloc(void)
 {
@@ -2177,7 +2370,6 @@ ulg GetThreadId(void)
 void os2GlobalsCtor(__GPRO)
 {
   G.os2.nLastDrive = (USHORT)(-1);
-  G.os2.firstcall = TRUE;
 
 #ifdef OS2DLL
   G.os2.rexx_mes = "0";
