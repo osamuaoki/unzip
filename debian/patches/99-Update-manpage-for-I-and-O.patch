@@ -1,0 +1,43 @@
+From 7227aac95e77a6a44affea485cee82d1f7cff833 Mon Sep 17 00:00:00 2001
+From: Osamu Aoki <osamu@debian.org>
+Date: Fri, 28 Apr 2023 16:29:54 +0900
+Subject: [PATCH] Update manpage for -I and -O
+
+Signed-off-by: Osamu Aoki <osamu@debian.org>
+---
+ man/unzip.1 | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/man/unzip.1 b/man/unzip.1
+index 75a7060..f7d1685 100644
+--- a/man/unzip.1
++++ b/man/unzip.1
+@@ -545,6 +545,10 @@ names.  The default is to exploit the destination file system, preserving
+ case and extended file name characters on an ODS5 destination file system;
+ and applying the ODS2-compatibility file name filtering on an ODS2 destination
+ file system.
++.IP \fB\-O\fP\ \fIcharset\fP
++specify a character encoding for DOS, Windows and OS/2 archives
++.IP \fB\-I\fP\ \fIcharset\fP
++specify a character encoding for UNIX and otherarchives
+ .PD
+ .\" =========================================================================
+ .SH "ENVIRONMENT OPTIONS"
+@@ -798,6 +802,14 @@ or
+ unzip \-l\-\-q file.zip
+ .EE
+ \fR(Extra minuses in options don't hurt.)
++.PP
++To extract Japanese archive with sjis encoded filenames on Debian GNU/Linux:
++.PP
++.EX
++unzip \-Osjis file.zip
++.EE
++.PP
++(List of usable \fIcharset\fP is available by executing \fCiconv \-\-list\fR.)
+ .PD
+ .\" =========================================================================
+ .SH TIPS
+-- 
+2.39.2
+
